@@ -1,0 +1,197 @@
+use std::{collections::BTreeMap, time::{Duration, Instant}};
+
+use anyhow::{anyhow, Result};
+use sysinfo::{Disks, Networks, System};
+
+#[derive(Debug, Clone, Default)]
+pub struct DiskSample {
+    pub mount: String,
+    pub available_bytes: u64,
+    pub total_bytes: u64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SystemSnapshot {
+    pub cpu_percent: f32,
+    pub mem_percent: f32,
+    pub swap_percent: f32,
+    pub mem_detail: String,
+    pub swap_detail: String,
+    pub net_rx: String,
+    pub net_tx: String,
+    pub disks: Vec<DiskSample>,
+}
+
+pub struct SystemSampler {
+    sys: System,
+    nets: Networks,
+    disks: Disks,
+    last_rx_total: u64,
+    last_tx_total: u64,
+    last_instant: Instant,
+}
+
+impl SystemSampler {
+    pub fn new() -> Self {
+        let mut sys = System::new_all();
+        sys.refresh_all();
+        let nets = Networks::new_with_refreshed_list();
+        let disks = Disks::new_with_refreshed_list();
+        let last_rx_total = nets.iter().map(|(_, d)| d.total_received()).sum();
+        let last_tx_total = nets.iter().map(|(_, d)| d.total_transmitted()).sum();
+
+        Self {
+            sys,
+            nets,
+            disks,
+            last_rx_total,
+            last_tx_total,
+            last_instant: Instant::now(),
+        }
+    }
+
+    pub fn interval() -> Duration {
+        Duration::from_millis(1000)
+    }
+
+    pub fn sample(&mut self) -> SystemSnapshot {
+        self.sys.refresh_cpu_usage();
+        self.sys.refresh_memory();
+        self.nets.refresh(true);
+        self.disks.refresh(true);
+
+        let cpu_percent = self.sys.global_cpu_usage() / 100.0;
+        let mem_total = self.sys.total_memory();
+        let mem_used = self.sys.used_memory();
+        let swap_total = self.sys.total_swap();
+        let swap_used = self.sys.used_swap();
+
+        let rx_total: u64 = self.nets.iter().map(|(_, d)| d.total_received()).sum();
+        let tx_total: u64 = self.nets.iter().map(|(_, d)| d.total_transmitted()).sum();
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_instant).as_secs_f64().max(0.001);
+        let rx_rate = (rx_total.saturating_sub(self.last_rx_total) as f64 / elapsed) as u64;
+        let tx_rate = (tx_total.saturating_sub(self.last_tx_total) as f64 / elapsed) as u64;
+        self.last_rx_total = rx_total;
+        self.last_tx_total = tx_total;
+        self.last_instant = now;
+
+        let disks = self
+            .disks
+            .iter()
+            .filter(|disk| disk.total_space() > 0)
+            .take(4)
+            .map(|disk| DiskSample {
+                mount: disk.mount_point().to_string_lossy().to_string(),
+                available_bytes: disk.available_space(),
+                total_bytes: disk.total_space(),
+            })
+            .collect();
+
+        SystemSnapshot {
+            cpu_percent,
+            mem_percent: ratio(mem_used, mem_total),
+            swap_percent: ratio(swap_used, swap_total),
+            mem_detail: format!(
+                "{}/{}",
+                format_bytes(mem_used),
+                format_bytes(mem_total)
+            ),
+            swap_detail: format!(
+                "{}/{}",
+                format_bytes(swap_used),
+                format_bytes(swap_total)
+            ),
+            net_rx: format!("{}/s", format_bytes(rx_rate)),
+            net_tx: format!("{}/s", format_bytes(tx_rate)),
+            disks,
+        }
+    }
+}
+
+fn ratio(used: u64, total: u64) -> f32 {
+    if total == 0 {
+        0.0
+    } else {
+        (used as f32 / total as f32).clamp(0.0, 1.0)
+    }
+}
+
+pub fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} {}", UNITS[unit])
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+pub fn remote_snapshot_from_kv(raw: &str) -> Result<SystemSnapshot> {
+    let mut kv = BTreeMap::new();
+    let mut disks = Vec::new();
+
+    for line in raw.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        if let Some(rest) = line.strip_prefix("DISK=") {
+            let mut parts = rest.split('\t');
+            let mount = parts.next().unwrap_or_default().to_string();
+            let available_bytes = parts
+                .next()
+                .unwrap_or("0")
+                .parse::<u64>()
+                .unwrap_or_default();
+            let total_bytes = parts
+                .next()
+                .unwrap_or("0")
+                .parse::<u64>()
+                .unwrap_or_default();
+            disks.push(DiskSample {
+                mount,
+                available_bytes,
+                total_bytes,
+            });
+            continue;
+        }
+
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        kv.insert(key.to_string(), value.to_string());
+    }
+
+    let cpu_percent = kv
+        .get("CPU_PERCENT")
+        .ok_or_else(|| anyhow!("missing CPU_PERCENT"))?
+        .parse::<f32>()
+        .unwrap_or_default()
+        / 100.0;
+
+    let mem_used = parse_u64(&kv, "MEM_USED");
+    let mem_total = parse_u64(&kv, "MEM_TOTAL");
+    let swap_used = parse_u64(&kv, "SWAP_USED");
+    let swap_total = parse_u64(&kv, "SWAP_TOTAL");
+    let rx_rate = parse_u64(&kv, "NET_RX");
+    let tx_rate = parse_u64(&kv, "NET_TX");
+
+    Ok(SystemSnapshot {
+        cpu_percent: cpu_percent.clamp(0.0, 1.0),
+        mem_percent: ratio(mem_used, mem_total),
+        swap_percent: ratio(swap_used, swap_total),
+        mem_detail: format!("{}/{}", format_bytes(mem_used), format_bytes(mem_total)),
+        swap_detail: format!("{}/{}", format_bytes(swap_used), format_bytes(swap_total)),
+        net_rx: format!("{}/s", format_bytes(rx_rate)),
+        net_tx: format!("{}/s", format_bytes(tx_rate)),
+        disks,
+    })
+}
+
+fn parse_u64(kv: &BTreeMap<String, String>, key: &str) -> u64 {
+    kv.get(key)
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or_default()
+}

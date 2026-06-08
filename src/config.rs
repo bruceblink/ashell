@@ -1,0 +1,193 @@
+use std::{fs, path::PathBuf};
+
+use anyhow::{Context, Result};
+use directories::BaseDirs;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthMethod {
+    Password,
+    Key,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub id: String,
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub auth: AuthMethod,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default)]
+    pub private_key_path: String,
+    #[serde(default)]
+    pub private_key_inline: String,
+    #[serde(default)]
+    pub last_used: Option<String>,
+}
+
+impl Session {
+    pub fn password(host: String, port: u16, user: String, password: String) -> Self {
+        let name = format!("{user}@{host}");
+        Self {
+            id: Uuid::new_v4().to_string(),
+            name,
+            host,
+            port,
+            user,
+            auth: AuthMethod::Password,
+            password,
+            private_key_path: String::new(),
+            private_key_inline: String::new(),
+            last_used: None,
+        }
+    }
+
+    pub fn key(
+        host: String,
+        port: u16,
+        user: String,
+        private_key_path: String,
+        private_key_inline: String,
+    ) -> Self {
+        let name = format!("{user}@{host}");
+        Self {
+            id: Uuid::new_v4().to_string(),
+            name,
+            host,
+            port,
+            user,
+            auth: AuthMethod::Key,
+            password: String::new(),
+            private_key_path,
+            private_key_inline,
+            last_used: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ConfigFile {
+    #[serde(default)]
+    pub follow_system_theme: bool,
+    #[serde(default)]
+    pub light_theme_name: String,
+    #[serde(default)]
+    pub dark_theme_name: String,
+    #[serde(default = "default_terminal_font_size")]
+    pub terminal_font_size: f32,
+    #[serde(default)]
+    pub sessions: Vec<Session>,
+}
+
+fn default_terminal_font_size() -> f32 {
+    13.0
+}
+
+pub struct ConfigStore {
+    path: PathBuf,
+    cache: ConfigFile,
+}
+
+impl ConfigStore {
+    pub fn load() -> Result<Self> {
+        let path = Self::config_path()?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create config dir {}", parent.display()))?;
+        }
+
+        let cache = if path.exists() {
+            let raw = fs::read_to_string(&path)
+                .with_context(|| format!("failed to read {}", path.display()))?;
+            serde_json::from_str::<ConfigFile>(&raw).unwrap_or_default()
+        } else {
+            ConfigFile::default()
+        };
+
+        Ok(Self { path, cache })
+    }
+
+    pub fn in_memory() -> Self {
+        Self {
+            path: PathBuf::new(),
+            cache: ConfigFile::default(),
+        }
+    }
+
+    fn config_path() -> Result<PathBuf> {
+        let dirs = BaseDirs::new().context("could not determine user home directory")?;
+        Ok(dirs
+            .home_dir()
+            .join(".config")
+            .join("ashell")
+            .join("sessions.json"))
+    }
+
+    pub fn sessions(&self) -> &[Session] {
+        &self.cache.sessions
+    }
+
+    pub fn follow_system_theme(&self) -> bool {
+        self.cache.follow_system_theme
+    }
+
+    pub fn light_theme_name(&self) -> &str {
+        &self.cache.light_theme_name
+    }
+
+    pub fn dark_theme_name(&self) -> &str {
+        &self.cache.dark_theme_name
+    }
+
+    pub fn terminal_font_size(&self) -> f32 {
+        if self.cache.terminal_font_size <= 0.0 {
+            default_terminal_font_size()
+        } else {
+            self.cache.terminal_font_size
+        }
+    }
+
+    pub fn set_theme_preferences(
+        &mut self,
+        follow_system_theme: bool,
+        light_theme_name: impl Into<String>,
+        dark_theme_name: impl Into<String>,
+    ) {
+        self.cache.follow_system_theme = follow_system_theme;
+        self.cache.light_theme_name = light_theme_name.into();
+        self.cache.dark_theme_name = dark_theme_name.into();
+    }
+
+    pub fn set_terminal_font_size(&mut self, terminal_font_size: f32) {
+        self.cache.terminal_font_size = terminal_font_size.max(10.0);
+    }
+
+    pub fn get(&self, id: &str) -> Option<&Session> {
+        self.cache.sessions.iter().find(|s| s.id == id)
+    }
+
+    pub fn upsert(&mut self, session: Session) {
+        if let Some(existing) = self.cache.sessions.iter_mut().find(|s| s.id == session.id) {
+            *existing = session;
+        } else {
+            self.cache.sessions.push(session);
+        }
+    }
+
+    pub fn remove(&mut self, id: &str) {
+        self.cache.sessions.retain(|s| s.id != id);
+    }
+
+    pub fn save(&self) -> Result<()> {
+        if self.path.as_os_str().is_empty() {
+            return Ok(());
+        }
+        let raw = serde_json::to_string_pretty(&self.cache)?;
+        fs::write(&self.path, raw).with_context(|| format!("failed to write {}", self.path.display()))
+    }
+}
