@@ -3,9 +3,10 @@ use alacritty_terminal::{
     vte::ansi::{Color as AnsiColor, CursorShape, NamedColor},
 };
 use gpui::{
-    App, Bounds, Element, ElementId, Entity, FocusHandle, Font, FontStyle, FontWeight, GlobalElementId, Hsla, InputHandler, IntoElement,
-    LayoutId, Pixels, Point, Rgba, StrikethroughStyle, TextRun, TextStyle, UTF16Selection, UnderlineStyle, Window, fill, point, px,
-    relative, rgb,
+    App, Bounds, Element, ElementId, Entity, FocusHandle, Font, FontStyle, FontWeight,
+    GlobalElementId, Hsla, InputHandler, IntoElement, LayoutId, Pixels, Point, Rgba,
+    StrikethroughStyle, TextRun, TextStyle, UTF16Selection, UnderlineStyle, Window, fill, point,
+    px, relative, rgb,
 };
 use gpui_component::ActiveTheme as _;
 
@@ -81,7 +82,13 @@ impl BatchedTextRun {
         }
     }
 
-    fn paint(&self, origin: Point<Pixels>, metrics: TerminalMetrics, window: &mut Window, cx: &mut App) {
+    fn paint(
+        &self,
+        origin: Point<Pixels>,
+        metrics: TerminalMetrics,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
         let pos = point(
             origin.x + metrics.cell_width * self.col as f32,
             origin.y + metrics.line_height * self.row as f32,
@@ -146,10 +153,13 @@ impl InputHandler for TerminalInputHandler {
         _window: &mut Window,
         cx: &mut App,
     ) -> Option<UTF16Selection> {
-        self.view.read(cx).terminal_accepts_text_input().then_some(UTF16Selection {
-            range: 0..0,
-            reversed: false,
-        })
+        self.view
+            .read(cx)
+            .terminal_accepts_text_input()
+            .then_some(UTF16Selection {
+                range: 0..0,
+                reversed: false,
+            })
     }
 
     fn marked_text_range(
@@ -277,15 +287,21 @@ impl TerminalElement {
             fg.a *= 0.7;
         }
 
-        let underline = cell.flags.intersects(Flags::ALL_UNDERLINES).then(|| UnderlineStyle {
-            color: Some(fg),
-            thickness: px(1.0),
-            wavy: cell.flags.contains(Flags::UNDERCURL),
-        });
-        let strikethrough = cell.flags.contains(Flags::STRIKEOUT).then(|| StrikethroughStyle {
-            color: Some(fg),
-            thickness: px(1.0),
-        });
+        let underline = cell
+            .flags
+            .intersects(Flags::ALL_UNDERLINES)
+            .then(|| UnderlineStyle {
+                color: Some(fg),
+                thickness: px(1.0),
+                wavy: cell.flags.contains(Flags::UNDERCURL),
+            });
+        let strikethrough = cell
+            .flags
+            .contains(Flags::STRIKEOUT)
+            .then(|| StrikethroughStyle {
+                color: Some(fg),
+                thickness: px(1.0),
+            });
 
         let weight = if cell.flags.intersects(Flags::BOLD | Flags::DIM_BOLD) {
             FontWeight::BOLD
@@ -326,10 +342,9 @@ impl TerminalElement {
                 continue;
             }
 
-            let selected = self
-                .snapshot
-                .selection
-                .is_some_and(|selection| selection_contains(selection, render_cell.row, render_cell.col));
+            let selected = self.snapshot.selection.is_some_and(|selection| {
+                selection_contains(selection, render_cell.row, render_cell.col)
+            });
             let bg = color_to_hsla(cell.bg, false, cx);
             if selected || !is_default_bg(cell.bg) {
                 rects.push(LayoutRect {
@@ -525,7 +540,11 @@ impl Element for TerminalElement {
         }
 
         if let Some(cursor) = prepaint.cursor {
-            if self.marked_text.as_ref().is_some_and(|text| !text.is_empty()) {
+            if self
+                .marked_text
+                .as_ref()
+                .is_some_and(|text| !text.is_empty())
+            {
                 return;
             }
             let x = prepaint.bounds.origin.x + prepaint.metrics.cell_width * cursor.col as f32;
@@ -534,7 +553,10 @@ impl Element for TerminalElement {
                 CursorShape::Hidden => {}
                 CursorShape::Beam => {
                     window.paint_quad(fill(
-                        Bounds::new(point(x, y), gpui::size(px(2.), prepaint.metrics.line_height)),
+                        Bounds::new(
+                            point(x, y),
+                            gpui::size(px(2.), prepaint.metrics.line_height),
+                        ),
                         cursor.color,
                     ));
                 }
@@ -572,7 +594,10 @@ fn merge_rects(mut rects: Vec<LayoutRect>) -> Vec<LayoutRect> {
 
     for rect in rects {
         if let Some(last) = merged.last_mut() {
-            if last.row == rect.row && last.color == rect.color && last.col + last.cells as i32 == rect.col {
+            if last.row == rect.row
+                && last.color == rect.color
+                && last.col + last.cells as i32 == rect.col
+            {
                 last.cells += rect.cells;
                 continue;
             }
@@ -601,7 +626,11 @@ fn selection_contains(selection: ViewportSelection, row: i32, col: i32) -> bool 
 }
 
 fn is_blank(cell: &alacritty_terminal::term::cell::Cell) -> bool {
-    cell.c == ' ' && cell.zerowidth().is_none() && !cell.flags.intersects(Flags::ALL_UNDERLINES | Flags::STRIKEOUT)
+    cell.c == ' '
+        && cell.zerowidth().is_none()
+        && !cell
+            .flags
+            .intersects(Flags::ALL_UNDERLINES | Flags::STRIKEOUT)
 }
 
 fn is_default_bg(color: AnsiColor) -> bool {
@@ -623,8 +652,8 @@ fn color_to_hsla(color: AnsiColor, foreground: bool, cx: &App) -> Hsla {
 
 fn ansi_index_color(index: u8, _cx: &App) -> Hsla {
     const ANSI_16: [u32; 16] = [
-        0x1f2430, 0xff5c57, 0x5af78e, 0xf3f99d, 0x57c7ff, 0xff6ac1, 0x9aedfe, 0xf1f1f0,
-        0x686868, 0xff5c57, 0x5af78e, 0xf3f99d, 0x57c7ff, 0xff6ac1, 0x9aedfe, 0xffffff,
+        0x1f2430, 0xff5c57, 0x5af78e, 0xf3f99d, 0x57c7ff, 0xff6ac1, 0x9aedfe, 0xf1f1f0, 0x686868,
+        0xff5c57, 0x5af78e, 0xf3f99d, 0x57c7ff, 0xff6ac1, 0x9aedfe, 0xffffff,
     ];
 
     if (index as usize) < ANSI_16.len() {

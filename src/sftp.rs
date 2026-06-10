@@ -4,15 +4,15 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use directories::BaseDirs;
 use flate2::read::GzDecoder;
 use russh::{
-    client::{self, Handler},
-    keys::{decode_secret_key, key::PrivateKeyWithHashAlg, load_secret_key, HashAlg, PrivateKey},
     Disconnect,
+    client::{self, Handler},
+    keys::{HashAlg, PrivateKey, decode_secret_key, key::PrivateKeyWithHashAlg, load_secret_key},
 };
 use russh_sftp::client::SftpSession;
 use tokio::{
@@ -38,6 +38,7 @@ pub struct RemoteEntry {
     pub modified: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct PreviewData {
     pub path: String,
@@ -49,9 +50,16 @@ pub struct PreviewData {
 #[derive(Debug)]
 pub enum SftpCommand {
     ListDir(String),
+    #[allow(dead_code)]
     Preview(String),
-    Download { remote: String, local_dir: String },
-    UploadPaths { locals: Vec<String>, remote_dir: String },
+    Download {
+        remote: String,
+        local_dir: String,
+    },
+    UploadPaths {
+        locals: Vec<String>,
+        remote_dir: String,
+    },
     Close,
 }
 
@@ -75,16 +83,21 @@ impl SftpHandle {
         let _ = self.commands.send(SftpCommand::ListDir(path));
     }
 
+    #[allow(dead_code)]
     pub fn preview(&self, path: String) {
         let _ = self.commands.send(SftpCommand::Preview(path));
     }
 
     pub fn download(&self, remote: String, local_dir: String) {
-        let _ = self.commands.send(SftpCommand::Download { remote, local_dir });
+        let _ = self
+            .commands
+            .send(SftpCommand::Download { remote, local_dir });
     }
 
     pub fn upload_paths(&self, locals: Vec<String>, remote_dir: String) {
-        let _ = self.commands.send(SftpCommand::UploadPaths { locals, remote_dir });
+        let _ = self
+            .commands
+            .send(SftpCommand::UploadPaths { locals, remote_dir });
     }
 
     pub fn close(&self) {
@@ -137,7 +150,10 @@ async fn run_sftp(
         .await
         .context("sftp handshake")?;
 
-    let home = sftp.canonicalize(".").await.unwrap_or_else(|_| "/".to_string());
+    let home = sftp
+        .canonicalize(".")
+        .await
+        .unwrap_or_else(|_| "/".to_string());
     emit_entries(&events, &tab_id, &sftp, &home).await?;
 
     while let Some(command) = commands.recv().await {
@@ -218,7 +234,9 @@ async fn run_sftp(
         }
     }
 
-    let _ = handle.disconnect(Disconnect::ByApplication, "bye", "").await;
+    let _ = handle
+        .disconnect(Disconnect::ByApplication, "bye", "")
+        .await;
     Ok(())
 }
 
@@ -241,7 +259,9 @@ async fn emit_entries(
     Ok(())
 }
 
-async fn connect_and_authenticate(session: &Session) -> Result<russh::client::Handle<SftpClientHandler>> {
+async fn connect_and_authenticate(
+    session: &Session,
+) -> Result<russh::client::Handle<SftpClientHandler>> {
     let config = Arc::new(client::Config {
         inactivity_timeout: Some(std::time::Duration::from_secs(600)),
         ..Default::default()
@@ -368,6 +388,7 @@ fn join_remote(parent: &str, child: &str) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn strip_archive_suffix(name: &str) -> &str {
     for suffix in [".tar.gz", ".tgz", ".zip", ".tar"] {
         if let Some(stripped) = name.strip_suffix(suffix) {
@@ -437,7 +458,10 @@ async fn list_dir_impl(sftp: &SftpSession, path: &str) -> Result<Vec<RemoteEntry
 }
 
 async fn preview_impl(sftp: &SftpSession, path: &str) -> Result<PreviewData> {
-    let metadata = sftp.metadata(path).await.with_context(|| format!("metadata {path}"))?;
+    let metadata = sftp
+        .metadata(path)
+        .await
+        .with_context(|| format!("metadata {path}"))?;
     let is_dir = metadata
         .permissions
         .map(|mode| (mode & 0o170_000) == 0o040_000)
@@ -458,9 +482,15 @@ async fn preview_impl(sftp: &SftpSession, path: &str) -> Result<PreviewData> {
         });
     }
 
-    let mut remote_file = sftp.open(path).await.with_context(|| format!("open remote {path}"))?;
+    let mut remote_file = sftp
+        .open(path)
+        .await
+        .with_context(|| format!("open remote {path}"))?;
     let mut buffer = vec![0u8; 128 * 1024];
-    let read = remote_file.read(&mut buffer).await.context("read preview bytes")?;
+    let read = remote_file
+        .read(&mut buffer)
+        .await
+        .context("read preview bytes")?;
     buffer.truncate(read);
 
     let nul_ratio = if buffer.is_empty() {
@@ -496,7 +526,10 @@ async fn download_path_impl(
         .await
         .with_context(|| format!("create {}", local_dir.display()))?;
 
-    let metadata = sftp.metadata(remote).await.with_context(|| format!("metadata {remote}"))?;
+    let metadata = sftp
+        .metadata(remote)
+        .await
+        .with_context(|| format!("metadata {remote}"))?;
     let is_dir = metadata
         .permissions
         .map(|mode| (mode & 0o170_000) == 0o040_000)
@@ -508,7 +541,8 @@ async fn download_path_impl(
             base_name(remote),
             Uuid::new_v4()
         ));
-        let extracted_to = download_remote_directory_archive(handle, sftp, remote, &local_archive).await?;
+        let extracted_to =
+            download_remote_directory_archive(handle, sftp, remote, &local_archive).await?;
         return Ok(format!("downloaded folder to {}", extracted_to.display()));
     }
 
@@ -517,7 +551,12 @@ async fn download_path_impl(
     Ok(format!("downloaded file to {}", local_path.display()))
 }
 
-async fn download_dir_recursive(sftp: &SftpSession, remote_dir: &str, local_dir: &Path) -> Result<()> {
+#[allow(dead_code)]
+async fn download_dir_recursive(
+    sftp: &SftpSession,
+    remote_dir: &str,
+    local_dir: &Path,
+) -> Result<()> {
     tokio::fs::create_dir_all(local_dir)
         .await
         .with_context(|| format!("create {}", local_dir.display()))?;
@@ -540,7 +579,11 @@ async fn download_remote_directory_archive(
     remote_dir: &str,
     local_archive: &Path,
 ) -> Result<PathBuf> {
-    let remote_archive = format!("/tmp/ashell-{}-{}.tar.gz", base_name(remote_dir), Uuid::new_v4());
+    let remote_archive = format!(
+        "/tmp/ashell-{}-{}.tar.gz",
+        base_name(remote_dir),
+        Uuid::new_v4()
+    );
     create_remote_archive(handle, remote_dir, &remote_archive).await?;
     let local_extract_root = local_archive
         .parent()
@@ -549,7 +592,11 @@ async fn download_remote_directory_archive(
 
     let archive_download = async {
         download_file_impl(sftp, &remote_archive, local_archive).await?;
-        extract_archive_to(local_archive, local_archive.parent().unwrap_or_else(|| Path::new("."))).await?;
+        extract_archive_to(
+            local_archive,
+            local_archive.parent().unwrap_or_else(|| Path::new(".")),
+        )
+        .await?;
         tokio::fs::remove_file(local_archive)
             .await
             .with_context(|| format!("remove {}", local_archive.display()))?;
@@ -568,14 +615,20 @@ async fn download_remote_directory_archive(
 }
 
 async fn download_file_impl(sftp: &SftpSession, remote: &str, local: &Path) -> Result<()> {
-    let mut remote_file = sftp.open(remote).await.with_context(|| format!("open remote {remote}"))?;
+    let mut remote_file = sftp
+        .open(remote)
+        .await
+        .with_context(|| format!("open remote {remote}"))?;
     let mut local_file = tokio::fs::File::create(local)
         .await
         .with_context(|| format!("create local {}", local.display()))?;
 
     let mut buffer = vec![0u8; 64 * 1024];
     loop {
-        let read = remote_file.read(&mut buffer).await.context("read remote file")?;
+        let read = remote_file
+            .read(&mut buffer)
+            .await
+            .context("read remote file")?;
         if read == 0 {
             break;
         }
@@ -588,7 +641,11 @@ async fn download_file_impl(sftp: &SftpSession, remote: &str, local: &Path) -> R
     Ok(())
 }
 
-async fn upload_paths_impl(sftp: &SftpSession, locals: &[String], remote_dir: &str) -> Result<String> {
+async fn upload_paths_impl(
+    sftp: &SftpSession,
+    locals: &[String],
+    remote_dir: &str,
+) -> Result<String> {
     create_remote_dir_all(sftp, remote_dir).await?;
     let mut file_count = 0usize;
     let mut folder_count = 0usize;
@@ -612,7 +669,11 @@ async fn upload_paths_impl(sftp: &SftpSession, locals: &[String], remote_dir: &s
     Ok(summary)
 }
 
-async fn upload_directory_impl(sftp: &SftpSession, local_dir: &Path, remote_parent: &str) -> Result<()> {
+async fn upload_directory_impl(
+    sftp: &SftpSession,
+    local_dir: &Path,
+    remote_parent: &str,
+) -> Result<()> {
     let root_name = local_dir
         .file_name()
         .and_then(|name| name.to_str())
@@ -651,7 +712,11 @@ async fn upload_directory_impl(sftp: &SftpSession, local_dir: &Path, remote_pare
     Ok(())
 }
 
-async fn upload_file_to_dir_impl(sftp: &SftpSession, local_file: &Path, remote_dir: &str) -> Result<()> {
+async fn upload_file_to_dir_impl(
+    sftp: &SftpSession,
+    local_file: &Path,
+    remote_dir: &str,
+) -> Result<()> {
     let file_name = local_file
         .file_name()
         .and_then(|name| name.to_str())
@@ -787,8 +852,13 @@ fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
+#[allow(dead_code)]
 async fn maybe_extract_archive(path: &Path) -> Result<Option<PathBuf>> {
-    let Some(file_name) = path.file_name().and_then(|name| name.to_str()).map(|name| name.to_string()) else {
+    let Some(file_name) = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_string())
+    else {
         return Ok(None);
     };
     let is_archive = [".zip", ".tar", ".tar.gz", ".tgz"]
@@ -834,7 +904,9 @@ async fn maybe_extract_archive(path: &Path) -> Result<Option<PathBuf>> {
                 .with_context(|| format!("open {}", archive_path.display()))?;
             let decoder = GzDecoder::new(file);
             let mut archive = tar::Archive::new(decoder);
-            archive.unpack(&target_dir).context("unpack tar.gz archive")?;
+            archive
+                .unpack(&target_dir)
+                .context("unpack tar.gz archive")?;
         } else if file_name.ends_with(".tar") {
             let file = fs::File::open(&archive_path)
                 .with_context(|| format!("open {}", archive_path.display()))?;
@@ -851,7 +923,11 @@ async fn maybe_extract_archive(path: &Path) -> Result<Option<PathBuf>> {
 }
 
 async fn extract_archive_to(path: &Path, target_dir: &Path) -> Result<()> {
-    let Some(file_name) = path.file_name().and_then(|name| name.to_str()).map(|name| name.to_string()) else {
+    let Some(file_name) = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_string())
+    else {
         return Ok(());
     };
     let archive_path = path.to_path_buf();
@@ -886,7 +962,9 @@ async fn extract_archive_to(path: &Path, target_dir: &Path) -> Result<()> {
                 .with_context(|| format!("open {}", archive_path.display()))?;
             let decoder = GzDecoder::new(file);
             let mut archive = tar::Archive::new(decoder);
-            archive.unpack(&target_dir).context("unpack tar.gz archive")?;
+            archive
+                .unpack(&target_dir)
+                .context("unpack tar.gz archive")?;
         } else if file_name.ends_with(".tar") {
             let file = fs::File::open(&archive_path)
                 .with_context(|| format!("open {}", archive_path.display()))?;

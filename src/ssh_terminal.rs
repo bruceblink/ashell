@@ -3,19 +3,19 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use directories::BaseDirs;
 use russh::{
-    client::{self, Handler},
-    keys::{decode_secret_key, key::PrivateKeyWithHashAlg, load_secret_key, HashAlg, PrivateKey},
     ChannelMsg, Disconnect,
+    client::{self, Handler},
+    keys::{HashAlg, PrivateKey, decode_secret_key, key::PrivateKeyWithHashAlg, load_secret_key},
 };
 use tokio::sync::mpsc;
 
 use crate::{
     config::{AuthMethod, Session},
-    system::{remote_snapshot_from_kv, SystemSnapshot},
+    system::{SystemSnapshot, remote_snapshot_from_kv},
     terminal::{BackendCommand, BackendEvent, BackendTx},
 };
 

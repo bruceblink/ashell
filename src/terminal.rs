@@ -5,10 +5,7 @@ use alacritty_terminal::{
     grid::{Dimensions, Scroll},
     index::{Column, Point, Side},
     selection::{Selection, SelectionRange, SelectionType},
-    term::{
-        cell::Cell,
-        point_to_viewport, viewport_to_point, Config, Term, TermMode,
-    },
+    term::{Config, Term, TermMode, cell::Cell, point_to_viewport, viewport_to_point},
     vte::ansi::{CursorShape, Processor},
 };
 use gpui::Keystroke;
@@ -32,16 +29,46 @@ pub enum BackendCommand {
 
 #[derive(Debug, Clone)]
 pub enum BackendEvent {
-    Output { tab_id: String, bytes: Vec<u8> },
-    Status { tab_id: String, text: String },
-    Connected { tab_id: String },
-    SftpEntries { tab_id: String, path: String, entries: Vec<RemoteEntry> },
-    SftpPreview { tab_id: String, preview: PreviewData },
-    SftpStatus { tab_id: String, text: String },
-    RemoteSystem { tab_id: String, snapshot: SystemSnapshot },
-    RemoteSystemUnavailable { tab_id: String, reason: String },
-    Closed { tab_id: String, reason: String },
-    TerminalTitleChanged { tab_id: String, title: String },
+    Output {
+        tab_id: String,
+        bytes: Vec<u8>,
+    },
+    Status {
+        tab_id: String,
+        text: String,
+    },
+    Connected {
+        tab_id: String,
+    },
+    SftpEntries {
+        tab_id: String,
+        path: String,
+        entries: Vec<RemoteEntry>,
+    },
+    SftpPreview {
+        tab_id: String,
+        preview: PreviewData,
+    },
+    SftpStatus {
+        tab_id: String,
+        text: String,
+    },
+    RemoteSystem {
+        tab_id: String,
+        snapshot: SystemSnapshot,
+    },
+    RemoteSystemUnavailable {
+        tab_id: String,
+        reason: String,
+    },
+    Closed {
+        tab_id: String,
+        reason: String,
+    },
+    TerminalTitleChanged {
+        tab_id: String,
+        title: String,
+    },
 }
 
 #[derive(Clone)]
@@ -123,16 +150,36 @@ pub struct SftpUiState {
 }
 
 impl TerminalTab {
-    pub fn new_local(id: String, title: String, backend: BackendTx, events: std::sync::mpsc::Sender<BackendEvent>) -> Self {
-        Self::new(id, title, TabKind::Local, "local shell".into(), backend, events)
+    pub fn new_local(
+        id: String,
+        title: String,
+        backend: BackendTx,
+        events: std::sync::mpsc::Sender<BackendEvent>,
+    ) -> Self {
+        Self::new(
+            id,
+            title,
+            TabKind::Local,
+            "local shell".into(),
+            backend,
+            events,
+        )
     }
 
-    pub fn new_ssh(id: String, session: &Session, backend: BackendTx, events: std::sync::mpsc::Sender<BackendEvent>) -> Self {
+    pub fn new_ssh(
+        id: String,
+        session: &Session,
+        backend: BackendTx,
+        events: std::sync::mpsc::Sender<BackendEvent>,
+    ) -> Self {
         let mut tab = Self::new(
             id,
             session.name.clone(),
             TabKind::Ssh,
-            format!("connecting {}@{}:{}", session.user, session.host, session.port),
+            format!(
+                "connecting {}@{}:{}",
+                session.user, session.host, session.port
+            ),
             backend,
             events,
         );
@@ -149,7 +196,14 @@ impl TerminalTab {
         tab
     }
 
-    fn new(id: String, title: String, kind: TabKind, status: String, backend: BackendTx, events: std::sync::mpsc::Sender<BackendEvent>) -> Self {
+    fn new(
+        id: String,
+        title: String,
+        kind: TabKind,
+        status: String,
+        backend: BackendTx,
+        events: std::sync::mpsc::Sender<BackendEvent>,
+    ) -> Self {
         Self {
             id: id.clone(),
             title,
@@ -264,8 +318,11 @@ impl TerminalTab {
         self.term.scroll_display(Scroll::Bottom);
     }
 
+    #[allow(dead_code)]
     pub fn has_selection(&self) -> bool {
-        self.term.selection_to_string().is_some_and(|text| !text.is_empty())
+        self.term
+            .selection_to_string()
+            .is_some_and(|text| !text.is_empty())
     }
 
     pub fn clear_selection(&mut self) {
@@ -273,7 +330,9 @@ impl TerminalTab {
     }
 
     pub fn selection_text(&self) -> Option<String> {
-        self.term.selection_to_string().filter(|text| !text.is_empty())
+        self.term
+            .selection_to_string()
+            .filter(|text| !text.is_empty())
     }
 
     pub fn begin_selection(
@@ -301,19 +360,25 @@ impl TerminalTab {
     }
 
     pub fn paste_text(&mut self, text: &str) {
-        let paste_text = text.replace('\x1b', "").replace("\r\n", "\r").replace('\n', "\r");
+        let paste_text = text
+            .replace('\x1b', "")
+            .replace("\r\n", "\r")
+            .replace('\n', "\r");
 
         self.backend
             .send(BackendCommand::Input(paste_text.into_bytes()));
     }
-
 }
 
 fn viewport_selection_from_range(
     display_offset: usize,
     selection: &Option<SelectionRange>,
 ) -> Option<ViewportSelection> {
-    let SelectionRange { start, end, is_block } = selection.as_ref().copied()?;
+    let SelectionRange {
+        start,
+        end,
+        is_block,
+    } = selection.as_ref().copied()?;
     let start = point_to_viewport(display_offset, start)?;
     let end = point_to_viewport(display_offset, end)?;
 
@@ -336,7 +401,9 @@ struct TerminalListener {
 impl EventListener for TerminalListener {
     fn send_event(&self, event: Event) {
         match event {
-            Event::PtyWrite(output) => self.backend.send(BackendCommand::Input(output.into_bytes())),
+            Event::PtyWrite(output) => self
+                .backend
+                .send(BackendCommand::Input(output.into_bytes())),
             Event::TextAreaSizeRequest(format) => {
                 let size = alacritty_terminal::event::WindowSize {
                     num_lines: 30,
@@ -358,14 +425,24 @@ impl EventListener for TerminalListener {
     }
 }
 
-fn new_term(cols: u16, rows: u16, backend: BackendTx, tab_id: String, events: std::sync::mpsc::Sender<BackendEvent>) -> Term<TerminalListener> {
+fn new_term(
+    cols: u16,
+    rows: u16,
+    backend: BackendTx,
+    tab_id: String,
+    events: std::sync::mpsc::Sender<BackendEvent>,
+) -> Term<TerminalListener> {
     Term::new(
         Config {
             scrolling_history: 2000,
             ..Config::default()
         },
         &TerminalSize::new(cols, rows),
-        TerminalListener { tab_id, backend, events },
+        TerminalListener {
+            tab_id,
+            backend,
+            events,
+        },
     )
 }
 
@@ -397,7 +474,11 @@ impl Dimensions for TerminalSize {
     }
 }
 
-pub fn encode_key(keystroke: &Keystroke, app_cursor_mode: bool, option_as_meta: bool) -> Option<Vec<u8>> {
+pub fn encode_key(
+    keystroke: &Keystroke,
+    app_cursor_mode: bool,
+    option_as_meta: bool,
+) -> Option<Vec<u8>> {
     zed_like_to_esc_str(keystroke, app_cursor_mode, option_as_meta)
         .map(|text| text.into_owned().into_bytes())
 }

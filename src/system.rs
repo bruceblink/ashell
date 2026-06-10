@@ -1,6 +1,9 @@
-use std::{collections::BTreeMap, time::{Duration, Instant}};
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use sysinfo::{Disks, Networks, System};
 
 #[derive(Debug, Clone, Default)]
@@ -69,7 +72,10 @@ impl SystemSampler {
         let rx_total: u64 = self.nets.iter().map(|(_, d)| d.total_received()).sum();
         let tx_total: u64 = self.nets.iter().map(|(_, d)| d.total_transmitted()).sum();
         let now = Instant::now();
-        let elapsed = now.duration_since(self.last_instant).as_secs_f64().max(0.001);
+        let elapsed = now
+            .duration_since(self.last_instant)
+            .as_secs_f64()
+            .max(0.001);
         let rx_rate = (rx_total.saturating_sub(self.last_rx_total) as f64 / elapsed) as u64;
         let tx_rate = (tx_total.saturating_sub(self.last_tx_total) as f64 / elapsed) as u64;
         self.last_rx_total = rx_total;
@@ -92,16 +98,8 @@ impl SystemSampler {
             cpu_percent,
             mem_percent: ratio(mem_used, mem_total),
             swap_percent: ratio(swap_used, swap_total),
-            mem_detail: format!(
-                "{}/{}",
-                format_bytes(mem_used),
-                format_bytes(mem_total)
-            ),
-            swap_detail: format!(
-                "{}/{}",
-                format_bytes(swap_used),
-                format_bytes(swap_total)
-            ),
+            mem_detail: format!("{}/{}", format_bytes(mem_used), format_bytes(mem_total)),
+            swap_detail: format!("{}/{}", format_bytes(swap_used), format_bytes(swap_total)),
             net_rx: format!("{}/s", format_bytes(rx_rate)),
             net_tx: format!("{}/s", format_bytes(tx_rate)),
             disks,

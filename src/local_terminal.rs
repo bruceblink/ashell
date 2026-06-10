@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
 use crate::terminal::{BackendCommand, BackendEvent, BackendTx};
 
@@ -34,7 +34,10 @@ pub fn spawn_local_terminal(
     });
 
     let mut cmd = CommandBuilder::new(&shell);
-    cmd.env("TERM", std::env::var("TERM").unwrap_or_else(|_| "xterm-256color".into()));
+    cmd.env(
+        "TERM",
+        std::env::var("TERM").unwrap_or_else(|_| "xterm-256color".into()),
+    );
     cmd.env(
         "COLORTERM",
         std::env::var("COLORTERM").unwrap_or_else(|_| "truecolor".into()),

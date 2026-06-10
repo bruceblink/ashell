@@ -214,6 +214,7 @@ impl ConfigStore {
             return Ok(());
         }
         let raw = serde_json::to_string_pretty(&self.cache)?;
-        fs::write(&self.path, raw).with_context(|| format!("failed to write {}", self.path.display()))
+        fs::write(&self.path, raw)
+            .with_context(|| format!("failed to write {}", self.path.display()))
     }
 }

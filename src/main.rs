@@ -13,7 +13,6 @@ use std::{
 use alacritty_terminal::index::Side;
 use alacritty_terminal::selection::SelectionType;
 use anyhow::{Context as _, Result};
-use rust_i18n::t;
 use gpui::{
     Anchor, App, AppContext as _, Bounds, ClipboardItem, Context, ElementId, Entity, FocusHandle,
     Focusable as _, FontWeight, Hsla, InteractiveElement as _, IntoElement, KeyBinding,
@@ -38,6 +37,7 @@ use gpui_component::{
     v_flex,
 };
 use gpui_component_assets::Assets;
+use rust_i18n::t;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
@@ -204,8 +204,7 @@ struct SftpContextMenuState {
 
 impl Ashell {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let host_input =
-            cx.new(|cx| InputState::new(window, cx).placeholder(t!("host")));
+        let host_input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("host")));
         let session_name_input =
             cx.new(|cx| InputState::new(window, cx).placeholder("name (optional)"));
         let port_input = cx.new(|cx| InputState::new(window, cx).default_value("22"));
@@ -907,9 +906,7 @@ impl Ashell {
                                                     div()
                                                         .text_size(px(11.))
                                                         .text_color(_cx.theme().muted_foreground)
-                                                        .child(t!(
-                                                            "open_local_shell_tab"
-                                                        )),
+                                                        .child(t!("open_local_shell_tab")),
                                                 ),
                                         ),
                                 )
@@ -951,9 +948,7 @@ impl Ashell {
                                                     div()
                                                         .text_size(px(11.))
                                                         .text_color(_cx.theme().muted_foreground)
-                                                        .child(t!(
-                                                            "create_or_edit_ssh_session"
-                                                        )),
+                                                        .child(t!("create_or_edit_ssh_session")),
                                                 ),
                                         ),
                                 )
@@ -1051,27 +1046,25 @@ impl Ashell {
                                     h_flex()
                                         .items_center()
                                         .gap_3()
-                                        .child(div().w(px(180.)).child(t!("terminal_font_size").to_string()))
-                                        .child(
-                                            Button::new("font-size-down")
-                                                .label("-")
-                                                .on_click(window.listener_for(&view, |this, _, _, cx| {
-                                                    this.change_terminal_font_size(-1.0, cx)
-                                                })),
-                                        )
                                         .child(
                                             div()
-                                                .min_w(px(64.))
-                                                .text_center()
-                                                .child(format!("{:.0}px", view.read(cx).terminal_font_size)),
+                                                .w(px(180.))
+                                                .child(t!("terminal_font_size").to_string()),
                                         )
-                                        .child(
-                                            Button::new("font-size-up")
-                                                .label("+")
-                                                .on_click(window.listener_for(&view, |this, _, _, cx| {
-                                                    this.change_terminal_font_size(1.0, cx)
-                                                })),
-                                        ),
+                                        .child(Button::new("font-size-down").label("-").on_click(
+                                            window.listener_for(&view, |this, _, _, cx| {
+                                                this.change_terminal_font_size(-1.0, cx)
+                                            }),
+                                        ))
+                                        .child(div().min_w(px(64.)).text_center().child(format!(
+                                            "{:.0}px",
+                                            view.read(cx).terminal_font_size
+                                        )))
+                                        .child(Button::new("font-size-up").label("+").on_click(
+                                            window.listener_for(&view, |this, _, _, cx| {
+                                                this.change_terminal_font_size(1.0, cx)
+                                            }),
+                                        )),
                                 )
                                 .child(
                                     h_flex()
@@ -1083,7 +1076,8 @@ impl Ashell {
                                                 .small()
                                                 .icon(IconName::Globe)
                                                 .label({
-                                                    let current_locale = view.read(cx).config.locale().to_string();
+                                                    let current_locale =
+                                                        view.read(cx).config.locale().to_string();
                                                     if current_locale == "en" {
                                                         t!("english").to_string()
                                                     } else if current_locale == "zh-CN" {
@@ -1095,35 +1089,60 @@ impl Ashell {
                                                 .dropdown_menu_with_anchor(Anchor::BottomRight, {
                                                     let view = view.clone();
                                                     move |mut menu, window, cx| {
-                                                        let current_locale = view.read(cx).config.locale().to_string();
+                                                        let current_locale = view
+                                                            .read(cx)
+                                                            .config
+                                                            .locale()
+                                                            .to_string();
                                                         menu = menu
                                                             .min_w(160.)
                                                             .item(
-                                                                PopupMenuItem::new(t!("follow_system").to_string())
-                                                                    .checked(current_locale == "system")
-                                                                    .on_click(window.listener_for(&view, |this, _, window, cx| {
-                                                                        this.set_display_language("system", window, cx)
-                                                                    })),
+                                                                PopupMenuItem::new(
+                                                                    t!("follow_system").to_string(),
+                                                                )
+                                                                .checked(current_locale == "system")
+                                                                .on_click(window.listener_for(
+                                                                    &view,
+                                                                    |this, _, window, cx| {
+                                                                        this.set_display_language(
+                                                                            "system", window, cx,
+                                                                        )
+                                                                    },
+                                                                )),
                                                             )
                                                             .separator()
                                                             .item(
-                                                                PopupMenuItem::new(t!("english").to_string())
-                                                                    .checked(current_locale == "en")
-                                                                    .on_click(window.listener_for(&view, |this, _, window, cx| {
-                                                                        this.set_display_language("en", window, cx)
-                                                                    })),
+                                                                PopupMenuItem::new(
+                                                                    t!("english").to_string(),
+                                                                )
+                                                                .checked(current_locale == "en")
+                                                                .on_click(window.listener_for(
+                                                                    &view,
+                                                                    |this, _, window, cx| {
+                                                                        this.set_display_language(
+                                                                            "en", window, cx,
+                                                                        )
+                                                                    },
+                                                                )),
                                                             )
                                                             .item(
-                                                                PopupMenuItem::new(t!("chinese").to_string())
-                                                                    .checked(current_locale == "zh-CN")
-                                                                    .on_click(window.listener_for(&view, |this, _, window, cx| {
-                                                                        this.set_display_language("zh-CN", window, cx)
-                                                                    })),
+                                                                PopupMenuItem::new(
+                                                                    t!("chinese").to_string(),
+                                                                )
+                                                                .checked(current_locale == "zh-CN")
+                                                                .on_click(window.listener_for(
+                                                                    &view,
+                                                                    |this, _, window, cx| {
+                                                                        this.set_display_language(
+                                                                            "zh-CN", window, cx,
+                                                                        )
+                                                                    },
+                                                                )),
                                                             );
                                                         menu
                                                     }
-                                                })
-                                        )
+                                                }),
+                                        ),
                                 )
                                 .child(
                                     div()
@@ -2533,7 +2552,7 @@ impl Ashell {
             .border_color(cx.theme().border)
             .bg(cx.theme().background)
             .on_drop(
-                cx.listener(|this, paths: &gpui::ExternalPaths, window, cx| {
+                cx.listener(|this, paths: &gpui::ExternalPaths, _window, cx| {
                     let paths_to_upload: Vec<String> = paths
                         .0
                         .iter()
@@ -3600,8 +3619,7 @@ fn main() {
         .with_quit_mode(QuitMode::Explicit);
 
     #[cfg(not(target_os = "macos"))]
-    let app = gpui_platform::application()
-        .with_assets(Assets);
+    let app = gpui_platform::application().with_assets(Assets);
     app.on_reopen(|cx| {
         if cx.windows().is_empty() {
             open_main_window(cx);
