@@ -123,8 +123,7 @@ pub struct ConfigFile {
     pub workspace_panels: Option<Vec<f32>>,
     #[serde(default)]
     pub body_panels: Option<Vec<f32>>,
-    #[serde(default)]
-    pub transfers: Vec<crate::terminal::Transfer>,
+
 }
 
 fn default_locale() -> String {
@@ -261,16 +260,6 @@ impl ConfigStore {
         self.cache.body_panels.as_ref()
     }
 
-    pub fn transfers(&self) -> Vec<crate::terminal::Transfer> {
-        self.cache.transfers.clone()
-    }
-
-    pub fn set_transfers(&mut self, transfers: Vec<crate::terminal::Transfer>) {
-        self.cache.transfers = transfers;
-        if let Err(err) = self.save() {
-            tracing::error!("failed to save config: {err:#}");
-        }
-    }
 
     pub fn set_layout_state(
         &mut self,
