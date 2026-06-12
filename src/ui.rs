@@ -1194,6 +1194,9 @@ impl Ashell {
                             }),
                     ),
             )
+            .when(self.config.monitoring_position() == "Sidebar", |this| {
+                this.child(self.render_sidebar_monitoring_panel(cx))
+            })
             .child(
                 Button::new("open-ssh-panel")
                     .primary()
@@ -1202,9 +1205,6 @@ impl Ashell {
                         cx.listener(|this, _, window, cx| this.open_new_ssh_dialog(window, cx)),
                     ),
             )
-            .when(self.config.monitoring_position() == "Sidebar", |this| {
-                this.child(self.render_sidebar_monitoring_panel(cx))
-            })
             .child(
                 v_flex()
                     .flex_1()
