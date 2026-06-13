@@ -488,15 +488,19 @@ impl Ashell {
     }
 
     pub(crate) fn close_tab(&mut self, id: String, cx: &mut Context<Self>) {
+        self.handle_tab_close(id);
+        cx.notify();
+    }
+
+    pub(crate) fn handle_tab_close(&mut self, id: String) {
         let group_ix = self.tab_groups.iter().position(|g| g.pane_root.contains(&id));
         let Some(ref group) = group_ix.map(|i| self.tab_groups[i].clone()) else {
             // Fallback: find and close individual tab
-            eprintln!("[close_tab] no group found for tab '{}', closing individually", id);
+            eprintln!("[handle_tab_close] no group found for tab '{}', closing individually", id);
             if let Some(ix) = self.tabs.iter().position(|tab| tab.id == id) {
                 self.tabs[ix].backend.send(BackendCommand::Close);
                 self.tabs.remove(ix);
             }
-            cx.notify();
             return;
         };
 
@@ -504,7 +508,7 @@ impl Ashell {
         let pane_ids_str: Vec<&str> = pane_ids.iter().map(|s| *s).collect();
         let is_group_close = pane_ids.len() <= 1;
         eprintln!(
-            "[close_tab] id='{}' group_panes={:?} is_group_close={}",
+            "[handle_tab_close] id='{}' group_panes={:?} is_group_close={}",
             id, pane_ids_str, is_group_close
         );
 
@@ -573,7 +577,6 @@ impl Ashell {
             for (_, handle) in self.sftp_handles.drain() {
                 handle.close();
             }
-            cx.notify();
             return;
         }
 
@@ -606,7 +609,6 @@ impl Ashell {
             }
         }
         self.sync_system_tab_to_active_group();
-        cx.notify();
     }
 
     pub(crate) fn focus_terminal(

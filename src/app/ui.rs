@@ -1639,23 +1639,31 @@ impl Ashell {
                         }
                     })
                     .unwrap_or(cx.theme().success);
-                if is_focused {
-                    el = h_flex()
-                        .size_full()
-                        .child(
-                            div()
-                                .w(px(2.))
-                                .h_full()
-                                .flex_none()
-                                .bg(indicator_color),
-                        )
-                        .child(el.flex_1().min_w(px(0.)));
-                } else {
-                    el = h_flex()
-                        .size_full()
-                        .child(div().w(px(2.)).h_full().flex_none())
-                        .child(el.opacity(0.85).flex_1().min_w(px(0.)));
+                let has_multiple_panes = this.pane_root.tab_ids().len() > 1;
+
+                if !is_focused {
+                    el = el.opacity(0.85);
                 }
+
+                if has_multiple_panes {
+                    if is_focused {
+                        el = div()
+                            .size_full()
+                            .relative()
+                            .child(div().absolute().top(px(1.)).left(px(1.)).right(px(1.)).h(px(1.)).bg(indicator_color))
+                            .child(div().absolute().bottom(px(1.)).left(px(1.)).right(px(1.)).h(px(1.)).bg(indicator_color))
+                            .child(div().absolute().left(px(1.)).top(px(1.)).bottom(px(1.)).w(px(1.)).bg(indicator_color))
+                            .child(div().absolute().right(px(1.)).top(px(1.)).bottom(px(1.)).w(px(1.)).bg(indicator_color))
+                            .p(px(4.))
+                            .child(el);
+                    } else {
+                        el = div()
+                            .size_full()
+                            .p(px(4.))
+                            .child(el);
+                    }
+                }
+
                 el.into_any_element()
             }
             PaneLayout::Horizontal(children, ratio) => {

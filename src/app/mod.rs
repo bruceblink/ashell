@@ -639,45 +639,7 @@ impl Ashell {
                         || reason == "ssh session closed";
                     // Auto-close the pane on graceful exit (e.g. user typed exit)
                     if is_graceful_exit {
-                        if let Some(ix) = self.tabs.iter().position(|t| t.id == tab_id) {
-                            self.tabs[ix].backend.send(BackendCommand::Close);
-                            self.tabs.remove(ix);
-                        }
-                        if let Some(g) = self.tab_groups.iter_mut().find(|g| g.pane_root.contains(&tab_id)) {
-                            g.pane_root.remove_tab(&tab_id);
-                        }
-                        self.pane_root.remove_tab(&tab_id);
-                        self.sync_pane_root_to_group();
-                        if self.tabs.is_empty() || self.tab_groups.is_empty() {
-                            self.pane_root = PaneLayout::Single(String::new());
-                            self.focused_pane_path = vec![];
-                            self.active_tab = None;
-                            self.active_group = None;
-                            self.tab_groups.clear();
-                            self.tabs.clear();
-                            self.system_tab_id = None;
-                            self.cpu_history.clear();
-                            self.net_rx_history.clear();
-                            self.net_tx_history.clear();
-                            self.system_status = None;
-                            if let Some(handle) = self.sftp_handles.remove(&tab_id) {
-                                handle.close();
-                            }
-                            return changed;
-                        }
-
-                        let was_active = self.active_tab.as_deref() == Some(tab_id.as_str());
-                        if was_active
-                            || self.active_tab.as_ref().is_some_and(|active_id| !self.tabs.iter().any(|tab| &tab.id == active_id))
-                        {
-                            let first_id = self.pane_root.tab_ids().first().copied().map(String::from)
-                                .or_else(|| self.tabs.first().map(|t| t.id.clone()));
-                            if let Some(new_id) = first_id {
-                                self.active_tab = Some(new_id.clone());
-                                self.focus_pane_with_id(new_id);
-                            }
-                        }
-                        self.sync_system_tab_to_active_group();
+                        self.handle_tab_close(tab_id.clone());
                         self.status = reason.into();
                         self.remote_sample_in_flight = false;
                         return changed;
