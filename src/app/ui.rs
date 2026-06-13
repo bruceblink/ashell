@@ -1034,15 +1034,6 @@ impl Ashell {
         let cpu_pct = self.system.cpu_percent;
         let mem_pct = self.system.mem_percent;
         let swap_pct = self.system.swap_percent;
-        let disk_pct = if let Some(root_disk) = self.system.disks.iter().find(|d| d.mount == "/") {
-            if root_disk.total_bytes > 0 {
-                (root_disk.total_bytes - root_disk.available_bytes) as f64 / root_disk.total_bytes as f64
-            } else {
-                0.0
-            }
-        } else {
-            0.0
-        } as f32;
 
         let cpu_color = cx.theme().chart_1;
         let mem_color = cx.theme().chart_2;
@@ -1094,10 +1085,57 @@ impl Ashell {
                     .child(
                         h_flex()
                             .justify_between()
+                            .items_center()
                             .child(div().text_size(rems(0.85)).text_color(disk_color).child(t!("disk").to_string()))
-                            .child(div().text_size(rems(0.85)).text_color(muted_fg).child(format!("{:.1}%", disk_pct * 100.0))),
+                            .children(if self.system.disks.len() > 3 {
+                                Some(div().text_size(rems(0.65)).text_color(muted_fg).child(t!("scroll").to_string()))
+                            } else {
+                                None
+                            })
                     )
-                    .child(Progress::new("sidebar-disk").value(disk_pct * 100.0).color(disk_color).with_size(px(4.)).w_full())
+                    .child(
+                        div()
+                            .relative()
+                            .w_full()
+                            .child(
+                                v_flex()
+                                    .id("sidebar-disk-scroll")
+                                    .track_scroll(&self.disk_scroll_handle)
+                                    .overflow_y_scroll()
+                                    .max_h(px(90.))
+                                    .gap_2()
+                                    .children(self.system.disks.iter().map(|disk| {
+                                        let pct = if disk.total_bytes > 0 {
+                                            (disk.total_bytes - disk.available_bytes) as f64 / disk.total_bytes as f64 * 100.0
+                                        } else {
+                                            0.0
+                                        };
+                                        let mount_short = disk.mount.clone();
+                                        let mount_id = format!("sidebar-disk-{}", mount_short);
+                                        v_flex()
+                                            .gap_0p5()
+                                            .child(
+                                                h_flex()
+                                                    .justify_between()
+                                                    .child(div().text_size(rems(0.75)).text_color(muted_fg).child(mount_short))
+                                                    .child(div().text_size(rems(0.75)).text_color(muted_fg).child(format!("{:.1}%", pct))),
+                                            )
+                                            .child(Progress::new(mount_id).value(pct as f32).color(disk_color).with_size(px(4.)).w_full())
+                                    }))
+                            )
+                            .child(
+                                div()
+                                    .absolute()
+                                    .top_0()
+                                    .right_0()
+                                    .bottom_0()
+                                    .w(px(8.))
+                                    .child(
+                                        Scrollbar::vertical(&self.disk_scroll_handle)
+                                            .scrollbar_show(ScrollbarShow::Scrolling)
+                                    )
+                            )
+                    )
             )
             .child(
                 v_flex()

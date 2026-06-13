@@ -113,3 +113,4 @@ copy_paste_hint: "Tip: Regardless of this switch, you can always use %{key} + C/
 edit_file: "Edit File"
 edit_file_tooltip: "Download to temporary directory, open in default editor, and auto upload on save."
 auto_saved_and_uploaded: "Auto-saved & uploaded: %{base}"
+scroll: "Scroll ↓"
