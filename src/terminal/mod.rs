@@ -27,6 +27,7 @@ pub enum TabKind {
 pub enum BackendCommand {
     Input(Vec<u8>),
     Resize { cols: u16, rows: u16 },
+    SampleMetrics,
     Close,
 }
 
@@ -235,10 +236,15 @@ impl TerminalTab {
     }
 
     pub fn resize(&mut self, cols: u16, rows: u16) {
-        self.cols = cols.max(1);
-        self.rows = rows.max(1);
-        self.term.resize(TerminalSize::new(self.cols, self.rows));
-        self.backend.send(BackendCommand::Resize { cols, rows });
+        let new_cols = cols.max(1);
+        let new_rows = rows.max(1);
+        if self.cols != new_cols || self.rows != new_rows {
+            self.cols = new_cols;
+            self.rows = new_rows;
+            tracing::info!("[ui] terminal resized to {}x{} (cols x rows)", self.cols, self.rows);
+            self.term.resize(TerminalSize::new(self.cols, self.rows));
+            self.backend.send(BackendCommand::Resize { cols, rows });
+        }
     }
 
     pub fn cursor_state(&self) -> Option<CursorState> {

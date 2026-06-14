@@ -40,6 +40,7 @@ impl Ashell {
 
     pub(crate) fn navigate_sftp(&mut self, path: String, cx: &mut Context<Self>) {
         if let Some(handle) = self.active_sftp_handle() {
+            tracing::info!("[sftp] navigating to directory: '{}'", path);
             handle.list_dir(path.clone());
             if let Some(sftp) = self.active_sftp_mut() {
                 sftp.current_path = path;
@@ -134,6 +135,7 @@ impl Ashell {
             return;
         };
         if let Some(handle) = self.active_sftp_handle() {
+            tracing::info!("[sftp] triggering edit for file: '{}'", menu.remote_path);
             handle.edit_file(menu.remote_path);
         }
         cx.notify();
@@ -158,7 +160,9 @@ impl Ashell {
             match path_prompt.await {
                 Ok(Ok(Some(mut paths))) => {
                     if let Some(folder) = paths.pop() {
-                        handle.download(remote_path, folder.to_string_lossy().to_string());
+                        let local_path = folder.to_string_lossy().to_string();
+                        tracing::info!("[sftp] initiating download of '{}' to '{}'", remote_path, local_path);
+                        handle.download(remote_path, local_path);
                     }
                 }
                 Ok(Err(err)) => {
@@ -192,7 +196,9 @@ impl Ashell {
             match path_prompt.await {
                 Ok(Ok(Some(mut paths))) => {
                     if let Some(file) = paths.pop() {
-                        handle.upload_paths(vec![file.to_string_lossy().to_string()], remote_dir);
+                        let local_path = file.to_string_lossy().to_string();
+                        tracing::info!("[sftp] initiating upload of file '{}' to '{}'", local_path, remote_dir);
+                        handle.upload_paths(vec![local_path], remote_dir);
                     }
                 }
                 Ok(Err(err)) => {
@@ -226,7 +232,9 @@ impl Ashell {
             match path_prompt.await {
                 Ok(Ok(Some(mut paths))) => {
                     if let Some(folder) = paths.pop() {
-                        handle.upload_paths(vec![folder.to_string_lossy().to_string()], remote_dir);
+                        let local_path = folder.to_string_lossy().to_string();
+                        tracing::info!("[sftp] initiating upload of folder '{}' to '{}'", local_path, remote_dir);
+                        handle.upload_paths(vec![local_path], remote_dir);
                     }
                 }
                 Ok(Err(err)) => {
@@ -291,6 +299,7 @@ impl Ashell {
             if let Ok(Ok(Some(mut paths))) = path_prompt.await {
                 if let Some(folder) = paths.pop() {
                     let local_dir = folder.to_string_lossy().to_string();
+                    tracing::info!("[sftp] initiating batch download of {} entries to '{}'", selected.len(), local_dir);
                     for remote in selected {
                         let _ = handle.commands.send(crate::sftp::SftpCommand::Download {
                             remote,
@@ -317,6 +326,7 @@ impl Ashell {
         }
         if let Some(sftp) = self.active_sftp() {
             if let Some(handle) = self.active_sftp_handle() {
+                tracing::info!("[sftp] initiating batch upload of {} files to '{}'", paths.len(), sftp.current_path);
                 let _ = handle.commands.send(crate::sftp::SftpCommand::UploadPaths {
                     locals: paths,
                     remote_dir: sftp.current_path.clone(),

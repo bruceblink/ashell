@@ -49,10 +49,12 @@ pub fn spawn_ssh_terminal(
     BackendTx::Ssh(cmd_tx)
 }
 
-pub async fn sample_remote_system(session: Session) -> Result<SystemSnapshot> {
-    let (events_tx, _events_rx) = std::sync::mpsc::channel();
-    let handle = connect_and_authenticate("remote-metrics", &session, &events_tx).await?;
+async fn sample_remote_system_with_handle(
+    handle: Arc<tokio::sync::Mutex<russh::client::Handle<ClientHandler>>>,
+) -> Result<SystemSnapshot> {
     let mut channel = handle
+        .lock()
+        .await
         .channel_open_session()
         .await
         .context("open metrics session")?;
@@ -72,9 +74,6 @@ pub async fn sample_remote_system(session: Session) -> Result<SystemSnapshot> {
         }
     }
 
-    let _ = handle
-        .disconnect(Disconnect::ByApplication, "metrics done", "")
-        .await;
     let output = String::from_utf8_lossy(&stdout);
     remote_snapshot_from_kv(&output)
 }
@@ -95,9 +94,11 @@ async fn run_ssh(
         ),
     });
 
-    let handle = connect_and_authenticate(&tab_id, &session, &events).await?;
+    let handle = Arc::new(tokio::sync::Mutex::new(connect_and_authenticate(&tab_id, &session, &events).await?));
 
     let mut channel = handle
+        .lock()
+        .await
         .channel_open_session()
         .await
         .context("open session")?;
@@ -124,6 +125,7 @@ async fn run_ssh(
                 match command {
                     Some(BackendCommand::Input(bytes)) => {
                         if let Err(err) = channel.data(bytes.as_slice()).await {
+                            tracing::error!("[ssh] write error on tab {}: {}", tab_id, err);
                             exit_reason = format!("ssh write error: {err}");
                             break;
                         }
@@ -131,7 +133,29 @@ async fn run_ssh(
                     Some(BackendCommand::Resize { cols, rows }) => {
                         let _ = channel.window_change(cols.into(), rows.into(), 0, 0).await;
                     }
+                    Some(BackendCommand::SampleMetrics) => {
+                        let handle_clone = handle.clone();
+                        let tab_id_clone = tab_id.clone();
+                        let events_clone = events.clone();
+                        tokio::spawn(async move {
+                            match sample_remote_system_with_handle(handle_clone).await {
+                                Ok(snapshot) => {
+                                    let _ = events_clone.send(BackendEvent::RemoteSystem {
+                                        tab_id: tab_id_clone,
+                                        snapshot,
+                                    });
+                                }
+                                Err(err) => {
+                                    let _ = events_clone.send(BackendEvent::RemoteSystemUnavailable {
+                                        tab_id: tab_id_clone,
+                                        reason: format!("remote metrics unavailable: {err:#}"),
+                                    });
+                                }
+                            }
+                        });
+                    }
                     Some(BackendCommand::Close) | None => {
+                        tracing::info!("[ssh] local client closed the session for tab {}", tab_id);
                         let _ = channel.eof().await;
                         exit_reason = "ssh session closed".to_string();
                         break;
@@ -151,16 +175,20 @@ async fn run_ssh(
                     }
                     Some(ChannelMsg::Close) => {
                         if is_graceful_close {
+                            tracing::info!("[ssh] session gracefully closed by server for tab {}", tab_id);
                             exit_reason = "ssh session closed".to_string();
                         } else {
+                            tracing::warn!("[ssh] connection abruptly closed by server for tab {}", tab_id);
                             exit_reason = "ssh connection lost (abrupt close)".to_string();
                         }
                         break;
                     }
                     None => {
                         if is_graceful_close {
+                            tracing::info!("[ssh] network stream ended gracefully for tab {}", tab_id);
                             exit_reason = "ssh session closed".to_string();
                         } else {
+                            tracing::warn!("[ssh] network drop detected for tab {}", tab_id);
                             exit_reason = "ssh connection lost (network drop)".to_string();
                         }
                         break;
@@ -172,6 +200,8 @@ async fn run_ssh(
     }
 
     let _ = handle
+        .lock()
+        .await
         .disconnect(Disconnect::ByApplication, "bye", "")
         .await;
     let _ = events.send(BackendEvent::Closed {
@@ -193,6 +223,7 @@ async fn connect_and_authenticate(
         ..Default::default()
     });
     let addr = format!("{}:{}", session.host, session.port);
+    tracing::info!("[ssh] initiating tcp connection to {} (user: {})", addr, session.user);
     let _ = events.send(BackendEvent::Status {
         tab_id: tab_id.to_string(),
         text: format!("opening tcp connection to {addr}"),
@@ -200,9 +231,12 @@ async fn connect_and_authenticate(
     let mut handle = client::connect(config, addr.as_str(), ClientHandler)
         .await
         .with_context(|| format!("connect {addr} failed"))?;
+    
+    tracing::debug!("[ssh] tcp connected to {}", addr);
 
     let authed = match session.auth {
         AuthMethod::Password => {
+            tracing::info!("[ssh] sending password authentication for {}@{}", session.user, addr);
             let _ = events.send(BackendEvent::Status {
                 tab_id: tab_id.to_string(),
                 text: format!(
@@ -217,6 +251,7 @@ async fn connect_and_authenticate(
         }
         AuthMethod::Key => {
             let source = key_source_label(session);
+            tracing::info!("[ssh] sending key authentication for {}@{} (key source: {})", session.user, addr, source);
             let _ = events.send(BackendEvent::Status {
                 tab_id: tab_id.to_string(),
                 text: format!("connected to {addr}, loading private key from {source}"),
@@ -241,6 +276,7 @@ async fn connect_and_authenticate(
     };
 
     if !authed {
+        tracing::warn!("[ssh] authentication failed for {}@{}", session.user, addr);
         let _ = handle
             .disconnect(Disconnect::ByApplication, "auth failed", "")
             .await;
@@ -261,6 +297,8 @@ async fn connect_and_authenticate(
             }
         ));
     }
+
+    tracing::info!("[ssh] authentication successful for {}@{}", session.user, addr);
 
     let _ = events.send(BackendEvent::Status {
         tab_id: tab_id.to_string(),
@@ -438,6 +476,7 @@ echo "NET_RX=0"
 echo "NET_TX=0"
 '"#;
 
+#[derive(Clone)]
 struct ClientHandler;
 
 #[async_trait]

@@ -31,7 +31,7 @@ use crate::{
     session::config::{AuthMethod, ConfigStore},
     system::{SystemSampler, SystemSnapshot},
     terminal::{self, BackendEvent, TabKind, TerminalTab},
-    backend::ssh,
+    
 };
 
 #[derive(Clone, Debug)]
@@ -778,30 +778,16 @@ impl Ashell {
 
     pub(crate) fn request_active_system_snapshot(&mut self) {
         let Some(ref tab_id) = self.system_tab_id.clone() else { return };
-        let Some(session) = (|| {
+        let Some(backend) = (|| {
             let tab = self.tabs.iter().find(|t| t.id == *tab_id)?;
             if !tab.connected { return None; }
-            tab.session.clone()
+            Some(tab.backend.clone())
         })() else { return };
         if self.remote_sample_in_flight {
             return;
         }
         self.remote_sample_in_flight = true;
-        let events = self.events_tx.clone();
-        let tab_id = tab_id.clone();
-        self.runtime.spawn(async move {
-            match ssh::sample_remote_system(session).await {
-                Ok(snapshot) => {
-                    let _ = events.send(BackendEvent::RemoteSystem { tab_id, snapshot });
-                }
-                Err(err) => {
-                    let _ = events.send(BackendEvent::RemoteSystemUnavailable {
-                        tab_id,
-                        reason: format!("remote metrics unavailable: {err:#}"),
-                    });
-                }
-            }
-        });
+        backend.send(crate::terminal::BackendCommand::SampleMetrics);
     }
 
     pub(crate) fn terminal_ime_bounds_for_range(

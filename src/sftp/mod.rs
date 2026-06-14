@@ -642,6 +642,8 @@ async fn run_sftp(
                 } else {
                     path.clone()
                 };
+                
+                tracing::info!("[sftp] creating directory: '{}'", actual_path);
 
                 match sftp.create_dir(&actual_path).await {
                     Ok(_) => {
@@ -666,6 +668,7 @@ async fn run_sftp(
                 }
             }
             SftpCommand::DeletePaths(paths) => {
+                tracing::info!("[sftp] batch deleting {} paths", paths.len());
                 let _ = events.send(BackendEvent::SftpStatus {
                     tab_id: tab_id.clone(),
                     text: t!("deleting_paths", count = paths.len()).to_string(),

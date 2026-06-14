@@ -4,6 +4,47 @@ use gpui_component::Root;
 use crate::session::config::ConfigStore;
 use crate::Ashell;
 
+pub(crate) fn init_logging() {
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+    let log_dir = directories::BaseDirs::new()
+        .map(|dirs| dirs.home_dir().join(".config").join("ashell").join("log"))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    
+    std::fs::create_dir_all(&log_dir).ok();
+
+    let file_appender = tracing_appender::rolling::Builder::new()
+        .rotation(tracing_appender::rolling::Rotation::MINUTELY)
+        .max_log_files(6)
+        .filename_prefix("ashell.log")
+        .build(log_dir)
+        .expect("failed to initialize rolling file appender");
+        
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // Leak the guard so it lives for the entire duration of the app since GPUI's run might not return
+    std::mem::forget(_guard);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    let stdout_layer = if cfg!(debug_assertions) {
+        Some(tracing_subscriber::fmt::layer().with_target(true))
+    } else {
+        None
+    };
+        
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .with_target(true);
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(stdout_layer)
+        .with(file_layer)
+        .init();
+}
+
 #[cfg(target_os = "macos")]
 pub(crate) fn sync_macos_launch_environment() {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
@@ -117,9 +158,12 @@ pub(crate) fn open_main_window(cx: &mut App) {
         gpui_component::Theme::sync_system_appearance(Some(window), cx);
         let view = cx.new(|cx| Ashell::new(window, cx));
 
+        tracing::info!("[ui] main application window opened");
+        
         let workspace_panels_clone = view.read(cx).workspace_panels.clone();
         let body_panels_clone = view.read(cx).body_panels.clone();
         window.on_window_should_close(cx, move |window: &mut gpui::Window, cx: &mut gpui::App| {
+            tracing::info!("[ui] main application window closed, saving layout state...");
             let mut config = ConfigStore::load().unwrap_or_else(|_| ConfigStore::in_memory());
             let current_bounds = window.window_bounds();
             let saved_bounds = match current_bounds {

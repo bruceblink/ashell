@@ -20,12 +20,7 @@ pub(crate) use app::{
 
 fn main() {
     app::startup::sync_macos_launch_environment();
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+    app::startup::init_logging();
 
     #[cfg(target_os = "macos")]
     let app = gpui_platform::application()

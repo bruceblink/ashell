@@ -57,6 +57,7 @@ impl Ashell {
     }
 
     pub(crate) fn connect_ssh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        tracing::info!("[ui] user initiating new ssh connection from form");
         let session_name = self.session_name_input.read(cx).value().trim().to_string();
         let host = self.host_input.read(cx).value().trim().to_string();
         let port = self
@@ -297,6 +298,7 @@ impl Ashell {
     }
 
     pub(crate) fn connect_saved_session(&mut self, session_id: String, cx: &mut Context<Self>) {
+        tracing::info!("[ui] user clicked to connect saved session '{}'", session_id);
         let Some(session) = self.config.get(&session_id).cloned() else {
             self.status = "saved session not found".into();
             cx.notify();
@@ -390,6 +392,7 @@ impl Ashell {
     }
 
     pub(crate) fn open_ssh_session(&mut self, session: Session, cx: &mut Context<Self>) {
+        tracing::info!("[session] opening ssh tab for session '{}' ({}@{})", session.name, session.user, session.host);
         let id = Uuid::new_v4().to_string();
         let backend = ssh::spawn_ssh_terminal(
             self.runtime.handle(),
@@ -600,7 +603,7 @@ impl Ashell {
         let group_ix = self.tab_groups.iter().position(|g| g.pane_root.contains(&id));
         let Some(ref group) = group_ix.map(|i| self.tab_groups[i].clone()) else {
             // Fallback: find and close individual tab
-            eprintln!("[handle_tab_close] no group found for tab '{}', closing individually", id);
+            tracing::info!("[handle_tab_close] no group found for tab '{}', closing individually", id);
             if let Some(ix) = self.tabs.iter().position(|tab| tab.id == id) {
                 self.tabs[ix].backend.send(BackendCommand::Close);
                 self.tabs.remove(ix);
@@ -611,7 +614,7 @@ impl Ashell {
         let pane_ids = group.pane_root.tab_ids();
         let pane_ids_str: Vec<&str> = pane_ids.iter().map(|s| *s).collect();
         let is_group_close = pane_ids.len() <= 1;
-        eprintln!(
+        tracing::info!(
             "[handle_tab_close] id='{}' group_panes={:?} is_group_close={}",
             id, pane_ids_str, is_group_close
         );
@@ -842,7 +845,7 @@ impl Ashell {
     }
 
     pub(crate) fn split_current_pane(&mut self, direction: &str, cx: &mut Context<Self>) {
-        eprintln!(
+        tracing::info!(
             "[split] direction={} pane_root={:?} focused_path={:?} active_tab={:?} tabs={}",
             direction,
             self.pane_root,
@@ -949,7 +952,7 @@ impl Ashell {
         self.focused_pane_path = new_full_path;
         self.active_tab = Some(new_id);
         self.status = "pane split".into();
-        eprintln!(
+        tracing::info!(
             "[split] DONE: pane_root={:?} focused_path={:?} active_tab={:?} tabs={}",
             self.pane_root,
             self.focused_pane_path,

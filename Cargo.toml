@@ -42,6 +42,7 @@ image = { version = "0.25.9", default-features = false, features = ["png"] }
 futures = "0.3.32"
 notify = "6.1.1"
 open = "5.1"
+tracing-appender = "0.2.5"
 
 [profile.release]
 opt-level = 3
