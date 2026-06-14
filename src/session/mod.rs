@@ -182,6 +182,23 @@ impl Ashell {
         self.show_ssh_dialog(window, cx);
     }
 
+    pub(crate) fn clone_saved_session(
+        &mut self,
+        session_id: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(session) = self.config.get(&session_id).cloned() else {
+            self.status = "saved session not found".into();
+            cx.notify();
+            return;
+        };
+        self.load_session_into_form(&session, window, cx);
+        self.editing_session_id = None;
+        Self::set_input_value(&self.session_name_input, format!("{}-copy", session.name), window, cx);
+        self.show_ssh_dialog(window, cx);
+    }
+
     pub(crate) fn terminal_cell_width(&self) -> f32 {
         (self.terminal_font_size * 0.646).max(6.0)
     }

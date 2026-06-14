@@ -1308,9 +1308,24 @@ impl Ashell {
                                                     let view = cx.entity();
                                                     move |menu, window, _| {
                                                         let edit_value = edit_id.clone();
+                                                        let clone_value = edit_id.clone();
                                                         let delete_value = delete_id.clone();
                                                         menu.item(
-                                                            PopupMenuItem::new("Edit").on_click(
+                                                            PopupMenuItem::new(t!("clone").to_string()).on_click(
+                                                                window.listener_for(
+                                                                    &view,
+                                                                    move |this, _, window, cx| {
+                                                                        this.clone_saved_session(
+                                                                            clone_value.clone(),
+                                                                            window,
+                                                                            cx,
+                                                                        )
+                                                                    },
+                                                                ),
+                                                            ),
+                                                        )
+                                                        .item(
+                                                            PopupMenuItem::new(t!("edit").to_string()).on_click(
                                                                 window.listener_for(
                                                                     &view,
                                                                     move |this, _, window, cx| {
@@ -1324,7 +1339,7 @@ impl Ashell {
                                                             ),
                                                         )
                                                         .item(
-                                                            PopupMenuItem::new("Delete").on_click(
+                                                            PopupMenuItem::new(t!("delete").to_string()).on_click(
                                                                 window.listener_for(
                                                                     &view,
                                                                     move |this, _, _, cx| {
