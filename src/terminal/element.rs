@@ -11,8 +11,8 @@ use gpui::{
 use gpui_component::ActiveTheme as _;
 
 use crate::Ashell;
+use crate::terminal::custom_blocks::{is_custom_block_supported, paint_custom_block};
 use crate::terminal::{RenderSnapshot, ViewportSelection};
-use crate::terminal::custom_blocks::{paint_custom_block, is_custom_block_supported};
 
 #[derive(Clone, Copy)]
 struct TerminalMetrics {
@@ -230,9 +230,12 @@ impl InputHandler for TerminalInputHandler {
         _window: &mut Window,
         cx: &mut App,
     ) -> Option<Bounds<Pixels>> {
-        self.view
-            .read(cx)
-            .terminal_ime_bounds_for_range(range_utf16, self.element_bounds, self.cell_width, self.line_height)
+        self.view.read(cx).terminal_ime_bounds_for_range(
+            range_utf16,
+            self.element_bounds,
+            self.cell_width,
+            self.line_height,
+        )
     }
 
     fn character_index_for_point(
@@ -342,7 +345,10 @@ impl TerminalElement {
         }
     }
 
-    fn layout_grid(&self, cx: &App) -> (Vec<LayoutRect>, Vec<BatchedTextRun>, Vec<LayoutCustomBlock>) {
+    fn layout_grid(
+        &self,
+        cx: &App,
+    ) -> (Vec<LayoutRect>, Vec<BatchedTextRun>, Vec<LayoutCustomBlock>) {
         let mut rects = Vec::new();
         let mut runs = Vec::new();
         let mut custom_blocks = Vec::new();
@@ -364,7 +370,11 @@ impl TerminalElement {
                 rects.push(LayoutRect {
                     row: render_cell.row,
                     col: render_cell.col,
-                    cells: if cell.flags.contains(Flags::WIDE_CHAR) { 2 } else { 1 },
+                    cells: if cell.flags.contains(Flags::WIDE_CHAR) {
+                        2
+                    } else {
+                        1
+                    },
                     color: if selected {
                         cx.theme().selection
                     } else if cell.flags.contains(Flags::INVERSE) {
@@ -395,7 +405,11 @@ impl TerminalElement {
                     c: cell.c,
                     row: render_cell.row,
                     col: render_cell.col,
-                    cells: if cell.flags.contains(Flags::WIDE_CHAR) { 2 } else { 1 },
+                    cells: if cell.flags.contains(Flags::WIDE_CHAR) {
+                        2
+                    } else {
+                        1
+                    },
                     color: style.color,
                 });
                 continue;
@@ -521,8 +535,10 @@ impl Element for TerminalElement {
         }
 
         for block in &prepaint.custom_blocks {
-            let x = prepaint.bounds.origin.x.as_f32() + block.col as f32 * prepaint.metrics.cell_width.as_f32();
-            let y = prepaint.bounds.origin.y.as_f32() + block.row as f32 * prepaint.metrics.line_height.as_f32();
+            let x = prepaint.bounds.origin.x.as_f32()
+                + block.col as f32 * prepaint.metrics.cell_width.as_f32();
+            let y = prepaint.bounds.origin.y.as_f32()
+                + block.row as f32 * prepaint.metrics.line_height.as_f32();
             paint_custom_block(
                 window,
                 block.c,

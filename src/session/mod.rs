@@ -1,13 +1,10 @@
 pub mod config;
 
 use gpui::{
-    App, AppContext as _, Context, Entity, KeyDownEvent, MouseButton,
-    MouseDownEvent, MouseMoveEvent, SharedString, Window, px,
+    App, AppContext as _, Context, Entity, KeyDownEvent, MouseButton, MouseDownEvent,
+    MouseMoveEvent, SharedString, Window, px,
 };
-use gpui_component::{
-    Theme, WindowExt as _,
-    input::InputState,
-};
+use gpui_component::{Theme, WindowExt as _, input::InputState};
 use rust_i18n::t;
 use uuid::Uuid;
 
@@ -15,9 +12,12 @@ use self::config::{AuthMethod, Session};
 
 use crate::{
     Ashell, ConnectionProgress, PaneLayout, SelectorEntry, TabGroup,
+    app::constants::{
+        DEFAULT_COLS, DEFAULT_ROWS, SIDEBAR_WIDTH, TAB_BAR_HEIGHT, TERMINAL_PADDING_X,
+        TERMINAL_PADDING_Y,
+    },
     backend::{local, ssh},
     terminal::{BackendCommand, RenderSnapshot, TabKind, TerminalTab},
-    app::constants::{DEFAULT_COLS, DEFAULT_ROWS, SIDEBAR_WIDTH, TAB_BAR_HEIGHT, TERMINAL_PADDING_X, TERMINAL_PADDING_Y},
 };
 
 impl Ashell {
@@ -223,7 +223,12 @@ impl Ashell {
         };
         self.load_session_into_form(&session, window, cx);
         self.editing_session_id = None;
-        Self::set_input_value(&self.session_name_input, format!("{}-copy", session.name), window, cx);
+        Self::set_input_value(
+            &self.session_name_input,
+            format!("{}-copy", session.name),
+            window,
+            cx,
+        );
         self.show_ssh_dialog(window, cx);
     }
 
@@ -298,7 +303,10 @@ impl Ashell {
     }
 
     pub(crate) fn connect_saved_session(&mut self, session_id: String, cx: &mut Context<Self>) {
-        tracing::info!("[ui] user clicked to connect saved session '{}'", session_id);
+        tracing::info!(
+            "[ui] user clicked to connect saved session '{}'",
+            session_id
+        );
         let Some(session) = self.config.get(&session_id).cloned() else {
             self.status = "saved session not found".into();
             cx.notify();
@@ -342,7 +350,11 @@ impl Ashell {
         }
     }
 
-    pub(crate) fn activate_selector_selection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn activate_selector_selection(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let entries = self.selector_entries();
         let Some(entry) = entries.get(self.selector_selection).cloned() else {
             return;
@@ -392,7 +404,12 @@ impl Ashell {
     }
 
     pub(crate) fn open_ssh_session(&mut self, session: Session, cx: &mut Context<Self>) {
-        tracing::info!("[session] opening ssh tab for session '{}' ({}@{})", session.name, session.user, session.host);
+        tracing::info!(
+            "[session] opening ssh tab for session '{}' ({}@{})",
+            session.name,
+            session.user,
+            session.host
+        );
         let id = Uuid::new_v4().to_string();
         let backend = ssh::spawn_ssh_terminal(
             self.runtime.handle(),
@@ -429,7 +446,12 @@ impl Ashell {
         self.active_group = Some(group_id.clone());
         self.tabs_scroll_handle.scroll_to_item(self.tabs.len() - 1);
         if let Some(session_id) = self.active_session_id() {
-            if let Some(index) = self.config.sessions().iter().position(|s| s.id == session_id) {
+            if let Some(index) = self
+                .config
+                .sessions()
+                .iter()
+                .position(|s| s.id == session_id)
+            {
                 self.saved_scroll_handle.scroll_to_item(index);
             }
         }
@@ -496,15 +518,15 @@ impl Ashell {
             );
 
             // Replace tab state in-place to reuse the UI component
-            self.tabs[ix] = TerminalTab::new_ssh(
-                tab_id.clone(),
-                &session,
-                backend,
-                self.events_tx.clone(),
-            );
+            self.tabs[ix] =
+                TerminalTab::new_ssh(tab_id.clone(), &session, backend, self.events_tx.clone());
 
             // Find group to restart SFTP
-            if let Some(group) = self.tab_groups.iter().find(|g| g.pane_root.contains(&tab_id)) {
+            if let Some(group) = self
+                .tab_groups
+                .iter()
+                .find(|g| g.pane_root.contains(&tab_id))
+            {
                 groups_to_restart_sftp.insert(group.id.clone());
             }
         }
@@ -513,8 +535,12 @@ impl Ashell {
         for group_id in groups_to_restart_sftp {
             if let Some(group) = self.tab_groups.iter_mut().find(|g| g.id == group_id) {
                 // Use the session of any tab in that group
-                let group_session = self.tabs.iter().find(|t| group.pane_root.contains(&t.id) && t.session.is_some()).and_then(|t| t.session.clone());
-                
+                let group_session = self
+                    .tabs
+                    .iter()
+                    .find(|t| group.pane_root.contains(&t.id) && t.session.is_some())
+                    .and_then(|t| t.session.clone());
+
                 if let Some(session) = group_session {
                     if let Some(old_handle) = self.sftp_handles.remove(&group.id) {
                         old_handle.close();
@@ -526,7 +552,7 @@ impl Ashell {
                         self.events_tx.clone(),
                     );
                     self.sftp_handles.insert(group.id.clone(), sftp_handle);
-                    
+
                     if let Some(sftp) = group.sftp.as_mut() {
                         sftp.status = rust_i18n::t!("sftp_connecting").to_string();
                     }
@@ -549,7 +575,9 @@ impl Ashell {
             return;
         }
         self.connection_progress = None;
-        let tabs_to_close: Vec<_> = self.tabs.iter()
+        let tabs_to_close: Vec<_> = self
+            .tabs
+            .iter()
             .filter(|tab| !tab.connected && tab.session.is_some())
             .map(|tab| tab.id.clone())
             .collect();
@@ -569,7 +597,10 @@ impl Ashell {
         }
         self.active_tab = Some(id.clone());
         // Find which group this tab belongs to and restore its pane_root
-        let tab_group = self.tab_groups.iter_mut().find(|g| g.pane_root.contains(&id));
+        let tab_group = self
+            .tab_groups
+            .iter_mut()
+            .find(|g| g.pane_root.contains(&id));
         if let Some(group) = tab_group {
             self.pane_root = group.pane_root.clone();
             self.active_group = Some(group.id.clone());
@@ -584,7 +615,12 @@ impl Ashell {
         }
         if self.tabs.iter().any(|t| t.id == id) {
             if let Some(session_id) = self.active_session_id() {
-                if let Some(index) = self.config.sessions().iter().position(|s| s.id == session_id) {
+                if let Some(index) = self
+                    .config
+                    .sessions()
+                    .iter()
+                    .position(|s| s.id == session_id)
+                {
                     self.saved_scroll_handle.scroll_to_item(index);
                 }
             }
@@ -600,10 +636,16 @@ impl Ashell {
     }
 
     pub(crate) fn handle_tab_close(&mut self, id: String) {
-        let group_ix = self.tab_groups.iter().position(|g| g.pane_root.contains(&id));
+        let group_ix = self
+            .tab_groups
+            .iter()
+            .position(|g| g.pane_root.contains(&id));
         let Some(ref group) = group_ix.map(|i| self.tab_groups[i].clone()) else {
             // Fallback: find and close individual tab
-            tracing::info!("[handle_tab_close] no group found for tab '{}', closing individually", id);
+            tracing::info!(
+                "[handle_tab_close] no group found for tab '{}', closing individually",
+                id
+            );
             if let Some(ix) = self.tabs.iter().position(|tab| tab.id == id) {
                 self.tabs[ix].backend.send(BackendCommand::Close);
                 self.tabs.remove(ix);
@@ -616,7 +658,9 @@ impl Ashell {
         let is_group_close = pane_ids.len() <= 1;
         tracing::info!(
             "[handle_tab_close] id='{}' group_panes={:?} is_group_close={}",
-            id, pane_ids_str, is_group_close
+            id,
+            pane_ids_str,
+            is_group_close
         );
 
         let was_active = self.active_tab.as_deref() == Some(id.as_str());
@@ -635,16 +679,31 @@ impl Ashell {
                 let all_groups = &self.tab_groups;
                 if let Some(pos) = all_groups.iter().position(|g| g.id == group.id) {
                     if pos > 0 {
-                        next_active_id = all_groups[pos - 1].pane_root.tab_ids().first().copied().map(String::from);
+                        next_active_id = all_groups[pos - 1]
+                            .pane_root
+                            .tab_ids()
+                            .first()
+                            .copied()
+                            .map(String::from);
                     } else if pos + 1 < all_groups.len() {
-                        next_active_id = all_groups[pos + 1].pane_root.tab_ids().first().copied().map(String::from);
+                        next_active_id = all_groups[pos + 1]
+                            .pane_root
+                            .tab_ids()
+                            .first()
+                            .copied()
+                            .map(String::from);
                     }
                 }
             }
         }
         if is_group_close {
             // Close all tabs in the group
-            let tab_ids: Vec<String> = group.pane_root.tab_ids().iter().map(|s| s.to_string()).collect();
+            let tab_ids: Vec<String> = group
+                .pane_root
+                .tab_ids()
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
             for tab_id in &tab_ids {
                 if let Some(ix) = self.tabs.iter().position(|tab| tab.id == *tab_id) {
                     self.tabs[ix].backend.send(BackendCommand::Close);
@@ -662,7 +721,11 @@ impl Ashell {
                 self.tabs[ix].backend.send(BackendCommand::Close);
                 self.tabs.retain(|t| t.id != id);
             }
-            if let Some(g) = self.tab_groups.iter_mut().find(|g| g.pane_root.contains(&id)) {
+            if let Some(g) = self
+                .tab_groups
+                .iter_mut()
+                .find(|g| g.pane_root.contains(&id))
+            {
                 g.pane_root.remove_tab(&id);
             }
             self.pane_root.remove_tab(&id);
@@ -687,9 +750,6 @@ impl Ashell {
             return;
         }
 
-
-
-
         if was_active
             || self
                 .active_tab
@@ -698,12 +758,20 @@ impl Ashell {
         {
             // Activate next available pane
             let new_id = next_active_id.or_else(|| {
-                self.pane_root.tab_ids().first().copied().map(String::from)
+                self.pane_root
+                    .tab_ids()
+                    .first()
+                    .copied()
+                    .map(String::from)
                     .or_else(|| self.tabs.first().map(|t| t.id.clone()))
             });
             if let Some(new_id) = new_id {
                 self.active_tab = Some(new_id.clone());
-                if let Some(g) = self.tab_groups.iter().find(|g| g.pane_root.contains(&new_id)) {
+                if let Some(g) = self
+                    .tab_groups
+                    .iter()
+                    .find(|g| g.pane_root.contains(&new_id))
+                {
                     self.active_group = Some(g.id.clone());
                     self.pane_root = g.pane_root.clone();
                 }
@@ -815,12 +883,7 @@ impl Ashell {
         Self::resize_pane_tree(&mut self.tabs, &self.pane_root, total_cols, total_rows);
     }
 
-    fn resize_pane_tree(
-        tabs: &mut [TerminalTab],
-        layout: &PaneLayout,
-        cols: u16,
-        rows: u16,
-    ) {
+    fn resize_pane_tree(tabs: &mut [TerminalTab], layout: &PaneLayout, cols: u16, rows: u16) {
         match layout {
             PaneLayout::Single(id) => {
                 if let Some(tab) = tabs.iter_mut().find(|t| t.id == *id) {
@@ -905,12 +968,7 @@ impl Ashell {
                     self.events_tx.clone(),
                 );
                 self.sftp_handles.insert(new_id.clone(), sftp_handle);
-                TerminalTab::new_ssh(
-                    new_id.clone(),
-                    &session,
-                    backend,
-                    self.events_tx.clone(),
-                )
+                TerminalTab::new_ssh(new_id.clone(), &session, backend, self.events_tx.clone())
             }
         };
         tab.resize(DEFAULT_COLS, DEFAULT_ROWS);
@@ -939,7 +997,8 @@ impl Ashell {
             _ => return,
         };
 
-        self.pane_root.replace_at(&self.focused_pane_path, split_layout);
+        self.pane_root
+            .replace_at(&self.focused_pane_path, split_layout);
         self.sync_pane_root_to_group();
         // Update focused_pane_path: the new pane is at the indicated child index
         let parent_path = self.focused_pane_path.clone();
@@ -1001,7 +1060,11 @@ impl Ashell {
         }
     }
 
-    fn find_adjacent_pane(layout: &PaneLayout, path: &[usize], direction: &str) -> Option<Vec<usize>> {
+    fn find_adjacent_pane(
+        layout: &PaneLayout,
+        path: &[usize],
+        direction: &str,
+    ) -> Option<Vec<usize>> {
         if path.is_empty() {
             return None;
         }
@@ -1023,7 +1086,11 @@ impl Ashell {
                 if path.len() == 1 {
                     // Direct child level
                     if moves_in_this_split {
-                        let delta: i32 = if direction == "up" || direction == "left" { -1 } else { 1 };
+                        let delta: i32 = if direction == "up" || direction == "left" {
+                            -1
+                        } else {
+                            1
+                        };
                         let new_idx = idx as i32 + delta;
                         if new_idx >= 0 && (new_idx as usize) < children.len() {
                             let mut path = vec![new_idx as usize];
@@ -1037,17 +1104,26 @@ impl Ashell {
                     }
                 } else {
                     // Recurse into child first
-                    if let Some(mut child_path) = Self::find_adjacent_pane(&children[idx], &path[1..], direction) {
+                    if let Some(mut child_path) =
+                        Self::find_adjacent_pane(&children[idx], &path[1..], direction)
+                    {
                         child_path.insert(0, idx);
                         Some(child_path)
                     } else if moves_in_this_split {
                         // Try sibling at this level
-                        let delta: i32 = if direction == "up" || direction == "left" { -1 } else { 1 };
+                        let delta: i32 = if direction == "up" || direction == "left" {
+                            -1
+                        } else {
+                            1
+                        };
                         let new_idx = idx as i32 + delta;
                         if new_idx >= 0 && (new_idx as usize) < children.len() {
                             let inner_idx = *path.get(1).unwrap_or(&0);
                             let mut path = vec![new_idx as usize];
-                            path.extend(Self::leaf_at_index(&children[new_idx as usize], inner_idx));
+                            path.extend(Self::leaf_at_index(
+                                &children[new_idx as usize],
+                                inner_idx,
+                            ));
                             Some(path)
                         } else {
                             None
@@ -1068,7 +1144,11 @@ impl Ashell {
     ) {
         // Save current group state
         if let Some(current_group_id) = self.active_group.clone() {
-            if let Some(group) = self.tab_groups.iter_mut().find(|g| g.id == current_group_id) {
+            if let Some(group) = self
+                .tab_groups
+                .iter_mut()
+                .find(|g| g.id == current_group_id)
+            {
                 group.pane_root = self.pane_root.clone();
             }
         }
@@ -1111,7 +1191,8 @@ impl Ashell {
         }
 
         // Check if current system_tab_id is valid in this group
-        let is_current_valid = self.system_tab_id
+        let is_current_valid = self
+            .system_tab_id
             .as_ref()
             .map_or(false, |id| group_ssh_tabs.contains(id));
 
@@ -1187,15 +1268,20 @@ impl Ashell {
         match (layout, path) {
             (PaneLayout::Horizontal(_, _), []) => true,
             (PaneLayout::Vertical(_, _), []) => false,
-            (PaneLayout::Horizontal(children, _) | PaneLayout::Vertical(children, _), [first, rest @ ..]) => {
-                children.get(*first).map_or(false, |c| Self::is_layout_horizontal_at(c, rest))
-            }
+            (
+                PaneLayout::Horizontal(children, _) | PaneLayout::Vertical(children, _),
+                [first, rest @ ..],
+            ) => children
+                .get(*first)
+                .map_or(false, |c| Self::is_layout_horizontal_at(c, rest)),
             _ => false,
         }
     }
 
     fn adjust_split_ratio(layout: &mut PaneLayout, path: &[usize], _child_idx: usize, delta: f32) {
-        if let PaneLayout::Horizontal(children, ratio) | PaneLayout::Vertical(children, ratio) = layout {
+        if let PaneLayout::Horizontal(children, ratio) | PaneLayout::Vertical(children, ratio) =
+            layout
+        {
             if path.is_empty() {
                 *ratio = (*ratio + delta).clamp(0.1, 0.9);
             } else {

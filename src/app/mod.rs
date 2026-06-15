@@ -1,5 +1,6 @@
 pub mod constants;
 pub mod dialogs;
+pub mod keybinding_recorder;
 pub mod startup;
 pub mod theme;
 pub mod ui;
@@ -14,9 +15,8 @@ use std::{
 };
 
 use gpui::{
-    AppContext as _, Bounds, Context, Entity, FocusHandle, Pixels, Point,
-    SharedString, Size, UniformListScrollHandle, Window, point,
-    px, size,
+    AppContext as _, Bounds, Context, Entity, FocusHandle, Pixels, Point, SharedString, Size,
+    UniformListScrollHandle, Window, point, px, size,
 };
 use gpui_component::{
     Theme, ThemeMode, ThemeRegistry,
@@ -31,7 +31,6 @@ use crate::{
     session::config::{AuthMethod, ConfigStore},
     system::{SystemSampler, SystemSnapshot},
     terminal::{self, BackendEvent, TabKind, TerminalTab},
-    
 };
 
 #[derive(Clone, Debug)]
@@ -82,7 +81,10 @@ impl PaneLayout {
     pub fn replace_at(&mut self, path: &[usize], replacement: PaneLayout) {
         match (self, path) {
             (this @ PaneLayout::Single(_), []) => *this = replacement,
-            (PaneLayout::Horizontal(children, _) | PaneLayout::Vertical(children, _), [first, rest @ ..]) => {
+            (
+                PaneLayout::Horizontal(children, _) | PaneLayout::Vertical(children, _),
+                [first, rest @ ..],
+            ) => {
                 if let Some(child) = children.get_mut(*first) {
                     child.replace_at(rest, replacement);
                 }
@@ -187,8 +189,6 @@ impl ScrollbarHandle for TerminalScrollbarHandle {
     }
 }
 
-
-
 pub(crate) struct Ashell {
     pub(crate) focus_handle: FocusHandle,
     pub(crate) selector_focus_handle: FocusHandle,
@@ -247,6 +247,11 @@ pub(crate) struct Ashell {
     pub(crate) status: SharedString,
     pub(crate) config: ConfigStore,
     pub(crate) system_sampler: SystemSampler,
+    pub(crate) recording_action: Option<String>,
+    /// Error message when a recorded keybinding conflicts with another
+    pub(crate) keybind_error: Option<(String, String)>, // (action_id, error_message)
+    /// Whether workspace keybindings are currently suspended (during settings)
+    pub(crate) keybinds_suspended: bool,
     pub(crate) system: SystemSnapshot,
     pub(crate) cpu_history: Vec<f32>,
     pub(crate) net_rx_history: Vec<f32>,
@@ -256,7 +261,7 @@ pub(crate) struct Ashell {
 
     pub(crate) system_tab_id: Option<String>,
     pub(crate) sftp_handles: std::collections::HashMap<String, crate::sftp::SftpHandle>,
-    
+
     pub(crate) remote_sample_in_flight: bool,
     pub(crate) runtime: Runtime,
     pub(crate) events_rx: mpsc::Receiver<BackendEvent>,
@@ -307,7 +312,8 @@ impl Ashell {
                 .placeholder("-----BEGIN OPENSSH PRIVATE KEY-----")
         });
         let sftp_path_input = cx.new(|cx| InputState::new(window, cx).default_value("/"));
-        let sftp_new_folder_input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("new_folder").to_string()));
+        let sftp_new_folder_input =
+            cx.new(|cx| InputState::new(window, cx).placeholder(t!("new_folder").to_string()));
 
         let _subscriptions = vec![
             cx.subscribe_in(&host_input, window, Self::on_input_event),
@@ -427,6 +433,9 @@ impl Ashell {
             status: "ready".into(),
             config,
             system_sampler,
+            recording_action: None,
+            keybind_error: None,
+            keybinds_suspended: false,
             system,
             cpu_history: Vec::with_capacity(20),
             net_rx_history: Vec::with_capacity(20),
@@ -436,7 +445,7 @@ impl Ashell {
 
             system_tab_id: None,
             sftp_handles: std::collections::HashMap::new(),
-            
+
             remote_sample_in_flight: false,
             runtime: Runtime::new().expect("create tokio runtime"),
             events_rx,
@@ -478,7 +487,9 @@ impl Ashell {
                         let base_path = self.sftp_path_input.read(cx).text().to_string();
                         let path = crate::sftp::join_remote(&base_path, &name);
                         if let Some(handle) = self.active_sftp_handle() {
-                            let _ = handle.commands.send(crate::sftp::SftpCommand::CreateDir(path));
+                            let _ = handle
+                                .commands
+                                .send(crate::sftp::SftpCommand::CreateDir(path));
                         }
                     }
                     self.sftp_creating_folder = false;
@@ -545,7 +556,8 @@ impl Ashell {
                         if progress.tab_id == tab_id {
                             progress.lines.push(text.clone().into());
                             let _idx = progress.lines.len().saturating_sub(1);
-                            self.connection_scroll_handle.set_offset(point(px(0.), px(-99999.0)));
+                            self.connection_scroll_handle
+                                .set_offset(point(px(0.), px(-99999.0)));
                         }
                     }
                     self.status = text.into();
@@ -636,8 +648,8 @@ impl Ashell {
                     if self.system_tab_id.as_deref() == Some(tab_id.as_str()) {
                         self.system_status = Some(reason.clone().into());
                     }
-                    let is_graceful_exit = reason == "local shell closed"
-                        || reason == "ssh session closed";
+                    let is_graceful_exit =
+                        reason == "local shell closed" || reason == "ssh session closed";
                     // Auto-close the pane on graceful exit (e.g. user typed exit)
                     if is_graceful_exit {
                         self.handle_tab_close(tab_id.clone());
@@ -650,7 +662,8 @@ impl Ashell {
                         if progress.tab_id == tab_id {
                             progress.lines.push(reason.clone().into());
                             let _idx = progress.lines.len().saturating_sub(1);
-                            self.connection_scroll_handle.set_offset(point(px(0.), px(-99999.0)));
+                            self.connection_scroll_handle
+                                .set_offset(point(px(0.), px(-99999.0)));
                             let _ = session_label;
                             let _ = tab_title;
                             progress.title = t!("connection_failed").into();
@@ -661,14 +674,16 @@ impl Ashell {
                             progress.tab_id = tab_id.clone();
                             let msg = format!("{}: {}", tab_title.unwrap_or_default(), reason);
                             progress.lines.push(msg.into());
-                            self.connection_scroll_handle.set_offset(point(px(0.), px(-99999.0)));
+                            self.connection_scroll_handle
+                                .set_offset(point(px(0.), px(-99999.0)));
                             progress.title = t!("connection_failed").into();
                             progress.failed = true;
                         } else {
                             // Already showing a failure dialog, just append the new failure
                             let msg = format!("{}: {}", tab_title.unwrap_or_default(), reason);
                             progress.lines.push(msg.into());
-                            self.connection_scroll_handle.set_offset(point(px(0.), px(-99999.0)));
+                            self.connection_scroll_handle
+                                .set_offset(point(px(0.), px(-99999.0)));
                         }
                     } else if let Some(_) = session_label {
                         needs_new_progress = true;
@@ -748,7 +763,12 @@ impl Ashell {
             self.last_system_sample = Instant::now();
             // Use system_tab_id (not active_tab) to decide remote vs local sampling
             if let Some(ref tab_id) = self.system_tab_id.clone() {
-                if self.tabs.iter().any(|t| t.id == *tab_id && t.kind == TabKind::Ssh && t.connected) && self.system_status.is_none() {
+                if self
+                    .tabs
+                    .iter()
+                    .any(|t| t.id == *tab_id && t.kind == TabKind::Ssh && t.connected)
+                    && self.system_status.is_none()
+                {
                     self.request_active_system_snapshot();
                     return false;
                 }
@@ -782,12 +802,18 @@ impl Ashell {
     }
 
     pub(crate) fn request_active_system_snapshot(&mut self) {
-        let Some(ref tab_id) = self.system_tab_id.clone() else { return };
+        let Some(ref tab_id) = self.system_tab_id.clone() else {
+            return;
+        };
         let Some(backend) = (|| {
             let tab = self.tabs.iter().find(|t| t.id == *tab_id)?;
-            if !tab.connected { return None; }
+            if !tab.connected {
+                return None;
+            }
             Some(tab.backend.clone())
-        })() else { return };
+        })() else {
+            return;
+        };
         if self.remote_sample_in_flight {
             return;
         }
@@ -807,15 +833,10 @@ impl Ashell {
         let x = element_bounds.origin.x
             + px(cell_width) * cursor.col as f32
             + px(cell_width) * range_utf16.start as f32;
-        let y = element_bounds.origin.y
-            + px(line_height) * cursor.row as f32;
+        let y = element_bounds.origin.y + px(line_height) * cursor.row as f32;
         Some(Bounds::new(
             point(x, y),
-            size(
-                px(cell_width),
-                px(line_height),
-            ),
+            size(px(cell_width), px(line_height)),
         ))
     }
 }
-

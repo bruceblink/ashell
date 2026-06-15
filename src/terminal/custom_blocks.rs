@@ -3,9 +3,11 @@ use gpui::{Bounds, Hsla, Path, Pixels, Window, fill, point, px, size};
 pub fn is_custom_block_supported(c: char) -> bool {
     match c as u32 {
         0x2580..=0x258F | 0x2590 | 0x2594..=0x259F => true, // Block Elements
-        0x2500 | 0x2502 | 0x250C | 0x2510 | 0x2514 | 0x2518 | 0x251C | 0x2524 | 0x252C | 0x2534 | 0x253C => true, // Light lines
-        0x2501 | 0x2503 | 0x250F | 0x2513 | 0x2517 | 0x251B | 0x2523 | 0x252B | 0x2533 | 0x253B | 0x254B => true, // Heavy lines
-        0xE0B0..=0xE0B6 => true, // Powerline
+        0x2500 | 0x2502 | 0x250C | 0x2510 | 0x2514 | 0x2518 | 0x251C | 0x2524 | 0x252C | 0x2534
+        | 0x253C => true, // Light lines
+        0x2501 | 0x2503 | 0x250F | 0x2513 | 0x2517 | 0x251B | 0x2523 | 0x252B | 0x2533 | 0x253B
+        | 0x254B => true, // Heavy lines
+        0xE0B0..=0xE0B6 => true,                            // Powerline
         _ => false,
     }
 }
@@ -101,85 +103,164 @@ pub fn paint_custom_block(
         // Light lines
         0x2500 => paint_quad(x, cy - light / 2.0, w, light), // Horizontal
         0x2502 => paint_quad(cx - light / 2.0, y, light, h), // Vertical
-        0x250C => { // Down + Right
-            paint_quad(cx - light / 2.0, cy - light / 2.0, light, h / 2.0 + light / 2.0);
-            paint_quad(cx - light / 2.0, cy - light / 2.0, w / 2.0 + light / 2.0, light);
+        0x250C => {
+            // Down + Right
+            paint_quad(
+                cx - light / 2.0,
+                cy - light / 2.0,
+                light,
+                h / 2.0 + light / 2.0,
+            );
+            paint_quad(
+                cx - light / 2.0,
+                cy - light / 2.0,
+                w / 2.0 + light / 2.0,
+                light,
+            );
         }
-        0x2510 => { // Down + Left
-            paint_quad(cx - light / 2.0, cy - light / 2.0, light, h / 2.0 + light / 2.0);
+        0x2510 => {
+            // Down + Left
+            paint_quad(
+                cx - light / 2.0,
+                cy - light / 2.0,
+                light,
+                h / 2.0 + light / 2.0,
+            );
             paint_quad(x, cy - light / 2.0, w / 2.0 + light / 2.0, light);
         }
-        0x2514 => { // Up + Right
+        0x2514 => {
+            // Up + Right
             paint_quad(cx - light / 2.0, y, light, h / 2.0 + light / 2.0);
-            paint_quad(cx - light / 2.0, cy - light / 2.0, w / 2.0 + light / 2.0, light);
+            paint_quad(
+                cx - light / 2.0,
+                cy - light / 2.0,
+                w / 2.0 + light / 2.0,
+                light,
+            );
         }
-        0x2518 => { // Up + Left
+        0x2518 => {
+            // Up + Left
             paint_quad(cx - light / 2.0, y, light, h / 2.0 + light / 2.0);
             paint_quad(x, cy - light / 2.0, w / 2.0 + light / 2.0, light);
         }
-        0x251C => { // Vertical + Right
+        0x251C => {
+            // Vertical + Right
             paint_quad(cx - light / 2.0, y, light, h);
-            paint_quad(cx - light / 2.0, cy - light / 2.0, w / 2.0 + light / 2.0, light);
+            paint_quad(
+                cx - light / 2.0,
+                cy - light / 2.0,
+                w / 2.0 + light / 2.0,
+                light,
+            );
         }
-        0x2524 => { // Vertical + Left
+        0x2524 => {
+            // Vertical + Left
             paint_quad(cx - light / 2.0, y, light, h);
             paint_quad(x, cy - light / 2.0, w / 2.0 + light / 2.0, light);
         }
-        0x252C => { // Horizontal + Down
+        0x252C => {
+            // Horizontal + Down
             paint_quad(x, cy - light / 2.0, w, light);
-            paint_quad(cx - light / 2.0, cy - light / 2.0, light, h / 2.0 + light / 2.0);
+            paint_quad(
+                cx - light / 2.0,
+                cy - light / 2.0,
+                light,
+                h / 2.0 + light / 2.0,
+            );
         }
-        0x2534 => { // Horizontal + Up
+        0x2534 => {
+            // Horizontal + Up
             paint_quad(x, cy - light / 2.0, w, light);
             paint_quad(cx - light / 2.0, y, light, h / 2.0 + light / 2.0);
         }
-        0x253C => { // Vertical + Horizontal (Cross)
+        0x253C => {
+            // Vertical + Horizontal (Cross)
             paint_quad(x, cy - light / 2.0, w, light);
             paint_quad(cx - light / 2.0, y, light, h);
         }
-        
+
         // Heavy lines
         0x2501 => paint_quad(x, cy - heavy / 2.0, w, heavy), // Heavy Horizontal
         0x2503 => paint_quad(cx - heavy / 2.0, y, heavy, h), // Heavy Vertical
-        0x250F => { // Heavy Down + Right
-            paint_quad(cx - heavy / 2.0, cy - heavy / 2.0, heavy, h / 2.0 + heavy / 2.0);
-            paint_quad(cx - heavy / 2.0, cy - heavy / 2.0, w / 2.0 + heavy / 2.0, heavy);
+        0x250F => {
+            // Heavy Down + Right
+            paint_quad(
+                cx - heavy / 2.0,
+                cy - heavy / 2.0,
+                heavy,
+                h / 2.0 + heavy / 2.0,
+            );
+            paint_quad(
+                cx - heavy / 2.0,
+                cy - heavy / 2.0,
+                w / 2.0 + heavy / 2.0,
+                heavy,
+            );
         }
-        0x2513 => { // Heavy Down + Left
-            paint_quad(cx - heavy / 2.0, cy - heavy / 2.0, heavy, h / 2.0 + heavy / 2.0);
+        0x2513 => {
+            // Heavy Down + Left
+            paint_quad(
+                cx - heavy / 2.0,
+                cy - heavy / 2.0,
+                heavy,
+                h / 2.0 + heavy / 2.0,
+            );
             paint_quad(x, cy - heavy / 2.0, w / 2.0 + heavy / 2.0, heavy);
         }
-        0x2517 => { // Heavy Up + Right
+        0x2517 => {
+            // Heavy Up + Right
             paint_quad(cx - heavy / 2.0, y, heavy, h / 2.0 + heavy / 2.0);
-            paint_quad(cx - heavy / 2.0, cy - heavy / 2.0, w / 2.0 + heavy / 2.0, heavy);
+            paint_quad(
+                cx - heavy / 2.0,
+                cy - heavy / 2.0,
+                w / 2.0 + heavy / 2.0,
+                heavy,
+            );
         }
-        0x251B => { // Heavy Up + Left
+        0x251B => {
+            // Heavy Up + Left
             paint_quad(cx - heavy / 2.0, y, heavy, h / 2.0 + heavy / 2.0);
             paint_quad(x, cy - heavy / 2.0, w / 2.0 + heavy / 2.0, heavy);
         }
-        0x2523 => { // Heavy Vertical + Right
+        0x2523 => {
+            // Heavy Vertical + Right
             paint_quad(cx - heavy / 2.0, y, heavy, h);
-            paint_quad(cx - heavy / 2.0, cy - heavy / 2.0, w / 2.0 + heavy / 2.0, heavy);
+            paint_quad(
+                cx - heavy / 2.0,
+                cy - heavy / 2.0,
+                w / 2.0 + heavy / 2.0,
+                heavy,
+            );
         }
-        0x252B => { // Heavy Vertical + Left
+        0x252B => {
+            // Heavy Vertical + Left
             paint_quad(cx - heavy / 2.0, y, heavy, h);
             paint_quad(x, cy - heavy / 2.0, w / 2.0 + heavy / 2.0, heavy);
         }
-        0x2533 => { // Heavy Horizontal + Down
+        0x2533 => {
+            // Heavy Horizontal + Down
             paint_quad(x, cy - heavy / 2.0, w, heavy);
-            paint_quad(cx - heavy / 2.0, cy - heavy / 2.0, heavy, h / 2.0 + heavy / 2.0);
+            paint_quad(
+                cx - heavy / 2.0,
+                cy - heavy / 2.0,
+                heavy,
+                h / 2.0 + heavy / 2.0,
+            );
         }
-        0x253B => { // Heavy Horizontal + Up
+        0x253B => {
+            // Heavy Horizontal + Up
             paint_quad(x, cy - heavy / 2.0, w, heavy);
             paint_quad(cx - heavy / 2.0, y, heavy, h / 2.0 + heavy / 2.0);
         }
-        0x254B => { // Heavy Vertical + Horizontal (Cross)
+        0x254B => {
+            // Heavy Vertical + Horizontal (Cross)
             paint_quad(x, cy - heavy / 2.0, w, heavy);
             paint_quad(cx - heavy / 2.0, y, heavy, h);
         }
 
         // --- Powerline ---
-        0xE0B0 => { // Rightward Solid Arrow
+        0xE0B0 => {
+            // Rightward Solid Arrow
             let mut path = Path::new(point(x, y));
             path.line_to(point(x + w, y + h / 2.0));
             path.line_to(point(x, y + h));
@@ -187,7 +268,8 @@ pub fn paint_custom_block(
             window.paint_path(path, color);
             painted = true;
         }
-        0xE0B2 => { // Leftward Solid Arrow
+        0xE0B2 => {
+            // Leftward Solid Arrow
             let mut path = Path::new(point(x + w, y));
             path.line_to(point(x, y + h / 2.0));
             path.line_to(point(x + w, y + h));
@@ -195,7 +277,8 @@ pub fn paint_custom_block(
             window.paint_path(path, color);
             painted = true;
         }
-        0xE0B1 => { // Rightward Line Arrow
+        0xE0B1 => {
+            // Rightward Line Arrow
             let t = px(1.0);
             let mut p = Path::new(point(x, y));
             p.line_to(point(x + w, y + h / 2.0));
@@ -211,7 +294,8 @@ pub fn paint_custom_block(
             window.paint_path(p2, color);
             painted = true;
         }
-        0xE0B3 => { // Leftward Line Arrow
+        0xE0B3 => {
+            // Leftward Line Arrow
             let t = px(1.0);
             let mut p = Path::new(point(x + w, y));
             p.line_to(point(x, y + h / 2.0));
@@ -229,14 +313,16 @@ pub fn paint_custom_block(
         }
 
         // Half arches (Powerline rounded)
-        0xE0B4 => { // Rightward Solid Semicircle
+        0xE0B4 => {
+            // Rightward Solid Semicircle
             let mut path = Path::new(point(x, y));
             path.curve_to(point(x, y + h), point(x + w * 2.0, y + h / 2.0));
             path.line_to(point(x, y));
             window.paint_path(path, color);
             painted = true;
         }
-        0xE0B6 => { // Leftward Solid Semicircle
+        0xE0B6 => {
+            // Leftward Solid Semicircle
             let mut path = Path::new(point(x + w, y));
             path.curve_to(point(x + w, y + h), point(x - w, y + h / 2.0));
             path.line_to(point(x + w, y));

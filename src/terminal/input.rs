@@ -8,9 +8,8 @@ use gpui::{
 };
 
 use crate::{
-    Ashell,
+    Ashell, TerminalBacktabKey, TerminalTabKey,
     terminal::{BackendCommand, encode_key},
-    TerminalBacktabKey, TerminalTabKey,
 };
 
 impl Ashell {
@@ -287,7 +286,11 @@ impl Ashell {
         }
     }
 
-    pub(crate) fn begin_terminal_selection(&mut self, event: &MouseDownEvent, cx: &mut Context<Self>) {
+    pub(crate) fn begin_terminal_selection(
+        &mut self,
+        event: &MouseDownEvent,
+        cx: &mut Context<Self>,
+    ) {
         let click_count = event.click_count.max(1);
         let selection_type = match click_count {
             1 => SelectionType::Simple,
@@ -419,7 +422,7 @@ impl Ashell {
             }
 
             let mode = tab.term.mode();
-            
+
             let is_mouse_tracking = mode.intersects(
                 alacritty_terminal::term::TermMode::MOUSE_REPORT_CLICK
                     | alacritty_terminal::term::TermMode::MOUSE_MOTION
@@ -452,7 +455,8 @@ impl Ashell {
                         }
                     }
                     if !bytes.is_empty() {
-                        tab.backend.send(crate::terminal::BackendCommand::Input(bytes));
+                        tab.backend
+                            .send(crate::terminal::BackendCommand::Input(bytes));
                     }
                 }
                 window.prevent_default();
@@ -466,7 +470,8 @@ impl Ashell {
                     bytes.extend_from_slice(&[b'\x1b', b'O', code]);
                 }
                 if !bytes.is_empty() {
-                    tab.backend.send(crate::terminal::BackendCommand::Input(bytes));
+                    tab.backend
+                        .send(crate::terminal::BackendCommand::Input(bytes));
                 }
                 window.prevent_default();
                 cx.stop_propagation();

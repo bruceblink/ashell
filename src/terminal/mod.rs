@@ -1,6 +1,6 @@
+pub mod custom_blocks;
 pub mod element;
 pub mod input;
-pub mod custom_blocks;
 
 use std::sync::mpsc::Sender;
 
@@ -244,7 +244,11 @@ impl TerminalTab {
         if self.cols != new_cols || self.rows != new_rows {
             self.cols = new_cols;
             self.rows = new_rows;
-            tracing::info!("[ui] terminal resized to {}x{} (cols x rows)", self.cols, self.rows);
+            tracing::info!(
+                "[ui] terminal resized to {}x{} (cols x rows)",
+                self.cols,
+                self.rows
+            );
             self.term.resize(TerminalSize::new(self.cols, self.rows));
             self.backend.send(BackendCommand::Resize { cols, rows });
         }

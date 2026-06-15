@@ -129,6 +129,8 @@ pub struct ConfigFile {
     pub show_hidden_files: bool,
     #[serde(default = "default_monitoring_position")]
     pub monitoring_position: String,
+    #[serde(default)]
+    pub key_bindings: std::collections::HashMap<String, String>,
 }
 
 fn default_monitoring_position() -> String {
@@ -244,6 +246,16 @@ impl ConfigStore {
 
     pub fn set_locale(&mut self, locale: &str) {
         self.cache.locale = locale.to_string();
+    }
+
+    pub fn key_bindings(&self) -> &std::collections::HashMap<String, String> {
+        &self.cache.key_bindings
+    }
+
+    pub fn set_key_binding(&mut self, action_name: &str, keystroke: &str) {
+        self.cache
+            .key_bindings
+            .insert(action_name.to_string(), keystroke.to_string());
     }
 
     pub fn monitoring_position(&self) -> &str {

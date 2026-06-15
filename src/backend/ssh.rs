@@ -94,7 +94,9 @@ async fn run_ssh(
         ),
     });
 
-    let handle = Arc::new(tokio::sync::Mutex::new(connect_and_authenticate(&tab_id, &session, &events).await?));
+    let handle = Arc::new(tokio::sync::Mutex::new(
+        connect_and_authenticate(&tab_id, &session, &events).await?,
+    ));
 
     let mut channel = handle
         .lock()
@@ -223,7 +225,11 @@ async fn connect_and_authenticate(
         ..Default::default()
     });
     let addr = format!("{}:{}", session.host, session.port);
-    tracing::info!("[ssh] initiating tcp connection to {} (user: {})", addr, session.user);
+    tracing::info!(
+        "[ssh] initiating tcp connection to {} (user: {})",
+        addr,
+        session.user
+    );
     let _ = events.send(BackendEvent::Status {
         tab_id: tab_id.to_string(),
         text: format!("opening tcp connection to {addr}"),
@@ -231,12 +237,16 @@ async fn connect_and_authenticate(
     let mut handle = client::connect(config, addr.as_str(), ClientHandler)
         .await
         .with_context(|| format!("connect {addr} failed"))?;
-    
+
     tracing::debug!("[ssh] tcp connected to {}", addr);
 
     let authed = match session.auth {
         AuthMethod::Password => {
-            tracing::info!("[ssh] sending password authentication for {}@{}", session.user, addr);
+            tracing::info!(
+                "[ssh] sending password authentication for {}@{}",
+                session.user,
+                addr
+            );
             let _ = events.send(BackendEvent::Status {
                 tab_id: tab_id.to_string(),
                 text: format!(
@@ -251,7 +261,12 @@ async fn connect_and_authenticate(
         }
         AuthMethod::Key => {
             let source = key_source_label(session);
-            tracing::info!("[ssh] sending key authentication for {}@{} (key source: {})", session.user, addr, source);
+            tracing::info!(
+                "[ssh] sending key authentication for {}@{} (key source: {})",
+                session.user,
+                addr,
+                source
+            );
             let _ = events.send(BackendEvent::Status {
                 tab_id: tab_id.to_string(),
                 text: format!("connected to {addr}, loading private key from {source}"),
@@ -283,7 +298,11 @@ async fn connect_and_authenticate(
             if !success {
                 return Err(anyhow::anyhow!(
                     "public key authentication failed for {}@{}:{} using {} ({})",
-                    session.user, session.host, session.port, source, algorithm
+                    session.user,
+                    session.host,
+                    session.port,
+                    source,
+                    algorithm
                 ));
             }
             success
@@ -313,7 +332,11 @@ async fn connect_and_authenticate(
         ));
     }
 
-    tracing::info!("[ssh] authentication successful for {}@{}", session.user, addr);
+    tracing::info!(
+        "[ssh] authentication successful for {}@{}",
+        session.user,
+        addr
+    );
 
     let _ = events.send(BackendEvent::Status {
         tab_id: tab_id.to_string(),
@@ -376,7 +399,9 @@ fn private_keys_with_algs(keypair: PrivateKey) -> Result<Vec<PrivateKeyWithHashA
     }
 
     if algs.is_empty() {
-        return Err(anyhow!("Failed to construct PrivateKeyWithHashAlg for any supported hash algorithm"));
+        return Err(anyhow!(
+            "Failed to construct PrivateKeyWithHashAlg for any supported hash algorithm"
+        ));
     }
 
     Ok(algs)

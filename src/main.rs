@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use gpui::{ KeyBinding };
+use gpui::KeyBinding;
 use gpui_component_assets::Assets;
 
 mod app;
@@ -13,6 +13,11 @@ mod terminal;
 rust_i18n::i18n!("locales", fallback = "en");
 
 gpui::actions!(ashell_terminal, [TerminalTabKey, TerminalBacktabKey]);
+
+pub(crate) use app::keybinding_recorder::{
+    ClosePane, FocusPaneDown, FocusPaneLeft, FocusPaneRight, FocusPaneUp, NewSsh, OpenSession,
+    OpenSettings, SplitPaneDown, SplitPaneLeft, SplitPaneRight, SplitPaneUp, ToggleSftpZoom,
+};
 
 pub(crate) use app::{
     Ashell, ConnectionProgress, PaneLayout, SelectorEntry, SftpContextMenuState, TabGroup,
@@ -37,9 +42,18 @@ fn main() {
     app.run(move |cx| {
         gpui_component::init(cx);
         cx.bind_keys([
-            KeyBinding::new("tab", TerminalTabKey, Some(app::constants::TERMINAL_KEY_CONTEXT)),
-            KeyBinding::new("shift-tab", TerminalBacktabKey, Some(app::constants::TERMINAL_KEY_CONTEXT)),
+            KeyBinding::new(
+                "tab",
+                TerminalTabKey,
+                Some(app::constants::TERMINAL_KEY_CONTEXT),
+            ),
+            KeyBinding::new(
+                "shift-tab",
+                TerminalBacktabKey,
+                Some(app::constants::TERMINAL_KEY_CONTEXT),
+            ),
         ]);
+        app::startup::bind_workspace_keys(cx);
         app::theme::load_embedded_themes(cx);
         if let Err(err) = app::theme::load_fonts(cx) {
             tracing::warn!("failed to load embedded fonts: {err:#}");

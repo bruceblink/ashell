@@ -1,8 +1,6 @@
 use anyhow::{Context as _, Result};
 use gpui::{App, Context, SharedString, Window, px};
-use gpui_component::{
-    ActiveTheme as _, Theme, ThemeMode, ThemeRegistry,
-};
+use gpui_component::{ActiveTheme as _, Theme, ThemeMode, ThemeRegistry};
 
 use crate::Ashell;
 
@@ -14,9 +12,12 @@ pub(crate) const EMBEDDED_THEME_JSONS: &[&str] = &[
 ];
 
 pub(crate) fn load_fonts(cx: &mut App) -> Result<()> {
-    let regular =
-        std::borrow::Cow::Borrowed(include_bytes!("../../assets/fonts/MapleMono-NF-CN-Regular.ttf").as_slice());
-    let bold = std::borrow::Cow::Borrowed(include_bytes!("../../assets/fonts/MapleMono-NF-CN-Bold.ttf").as_slice());
+    let regular = std::borrow::Cow::Borrowed(
+        include_bytes!("../../assets/fonts/MapleMono-NF-CN-Regular.ttf").as_slice(),
+    );
+    let bold = std::borrow::Cow::Borrowed(
+        include_bytes!("../../assets/fonts/MapleMono-NF-CN-Bold.ttf").as_slice(),
+    );
     cx.text_system()
         .add_fonts(vec![regular, bold])
         .context("load Maple Mono NF CN fonts")?;
@@ -39,7 +40,12 @@ pub(crate) fn set_theme_font_names(theme: &mut Theme, ui_font_family: &str) {
 }
 
 impl Ashell {
-    pub(crate) fn switch_theme_mode(&mut self, mode: ThemeMode, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn switch_theme_mode(
+        &mut self,
+        mode: ThemeMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.follow_system_theme = false;
         self.theme_mode = mode;
         self.apply_theme_preferences(window, cx);
@@ -48,7 +54,12 @@ impl Ashell {
         cx.notify();
     }
 
-    pub(crate) fn apply_theme(&mut self, name: SharedString, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn apply_theme(
+        &mut self,
+        name: SharedString,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(theme_config) = ThemeRegistry::global(cx).themes().get(&name).cloned() else {
             self.status = format!("theme not found: {name}").into();
             cx.notify();
@@ -84,7 +95,12 @@ impl Ashell {
         cx.notify();
     }
 
-    pub(crate) fn set_display_language(&mut self, locale: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn set_display_language(
+        &mut self,
+        locale: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.config.set_locale(locale);
         let mut active_locale = locale.to_string();
         if active_locale == "system" {
@@ -143,6 +159,4 @@ impl Ashell {
             tracing::warn!("failed to save theme preferences: {err:#}");
         }
     }
-
-
 }

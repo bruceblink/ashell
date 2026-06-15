@@ -258,7 +258,7 @@ async fn run_sftp(
         .canonicalize(".")
         .await
         .unwrap_or_else(|_| "/".to_string());
-    
+
     let _ = events.send(BackendEvent::SftpHome {
         tab_id: tab_id.clone(),
         home: home.clone(),
@@ -575,10 +575,13 @@ async fn run_sftp(
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                         while let Ok(_) = rx.try_recv() {} // drain pending
 
-                        if commands_tx_clone.send(SftpCommand::UploadEditedFile {
-                            local_path: local_path.to_string_lossy().to_string(),
-                            remote_path: remote_path.clone(),
-                        }).is_err() {
+                        if commands_tx_clone
+                            .send(SftpCommand::UploadEditedFile {
+                                local_path: local_path.to_string_lossy().to_string(),
+                                remote_path: remote_path.clone(),
+                            })
+                            .is_err()
+                        {
                             break;
                         }
                     }
@@ -622,7 +625,11 @@ async fn run_sftp(
                             let now = chrono::Local::now().format("%H:%M:%S");
                             let _ = events_clone.send(BackendEvent::SftpStatus {
                                 tab_id: tab_id_clone.clone(),
-                                text: format!("{} ({})", t!("auto_saved_and_uploaded", base = base_name(&remote_path)), now),
+                                text: format!(
+                                    "{} ({})",
+                                    t!("auto_saved_and_uploaded", base = base_name(&remote_path)),
+                                    now
+                                ),
                             });
                         }
                         Err(err) => {
@@ -642,16 +649,17 @@ async fn run_sftp(
                 } else {
                     path.clone()
                 };
-                
+
                 tracing::info!("[sftp] creating directory: '{}'", actual_path);
 
                 match sftp.create_dir(&actual_path).await {
                     Ok(_) => {
                         let _ = events.send(BackendEvent::SftpStatus {
                             tab_id: tab_id.clone(),
-                            text: t!("create_folder_success", name = base_name(&actual_path)).to_string(),
+                            text: t!("create_folder_success", name = base_name(&actual_path))
+                                .to_string(),
                         });
-                        
+
                         // Re-fetch the parent directory to show the newly created folder
                         if let Some(parent) = parent_dir(&actual_path) {
                             let _ = commands_tx.send(SftpCommand::ListDir(parent));
@@ -741,21 +749,27 @@ fn recursive_delete<'a>(
                         continue;
                     }
                     let child_path = crate::sftp::join_remote(&path, &name);
-                    
+
                     let meta = entry.metadata();
                     let permissions = meta.permissions.unwrap_or(0);
                     let is_dir = (permissions & 0o170_000) == 0o040_000;
-                    
+
                     if is_dir {
                         recursive_delete(sftp, child_path).await?;
                     } else {
-                        sftp.remove_file(&child_path).await.with_context(|| format!("Failed to delete file {child_path}"))?;
+                        sftp.remove_file(&child_path)
+                            .await
+                            .with_context(|| format!("Failed to delete file {child_path}"))?;
                     }
                 }
-                sftp.remove_dir(&path).await.with_context(|| format!("Failed to delete dir {path}"))?;
+                sftp.remove_dir(&path)
+                    .await
+                    .with_context(|| format!("Failed to delete dir {path}"))?;
             }
             Err(_) => {
-                sftp.remove_file(&path).await.with_context(|| format!("Failed to delete {path}"))?;
+                sftp.remove_file(&path)
+                    .await
+                    .with_context(|| format!("Failed to delete {path}"))?;
             }
         }
         Ok(())
@@ -809,7 +823,9 @@ async fn connect_and_authenticate(
                         break;
                     }
                     Ok(false) => {
-                        tracing::debug!("[sftp] public key auth failed with algorithm, trying next");
+                        tracing::debug!(
+                            "[sftp] public key auth failed with algorithm, trying next"
+                        );
                         continue;
                     }
                     Err(e) => {
@@ -819,7 +835,12 @@ async fn connect_and_authenticate(
                 }
             }
             if !success {
-                return Err(anyhow!("public key authentication failed for {}@{}:{}", session.user, session.host, session.port));
+                return Err(anyhow!(
+                    "public key authentication failed for {}@{}:{}",
+                    session.user,
+                    session.host,
+                    session.port
+                ));
             }
             success
         }
@@ -894,7 +915,9 @@ fn private_keys_with_algs(keypair: PrivateKey) -> Result<Vec<PrivateKeyWithHashA
     }
 
     if algs.is_empty() {
-        return Err(anyhow!("Failed to construct PrivateKeyWithHashAlg for any supported hash algorithm"));
+        return Err(anyhow!(
+            "Failed to construct PrivateKeyWithHashAlg for any supported hash algorithm"
+        ));
     }
 
     Ok(algs)
@@ -1350,7 +1373,6 @@ async fn upload_paths_impl(
             file_count += 1;
         }
     }
-
 
     // Create directories sequentially first
     for dir in dirs_to_create {
