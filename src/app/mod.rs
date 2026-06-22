@@ -573,7 +573,7 @@ impl Ashell {
             terminal_marked_text: None,
             dragging_splitter: None,
             drag_split_origin: None,
-            sftp_panel_minimized: false,
+            sftp_panel_minimized: config.sftp_panel_minimized(),
             sidebar_collapsed: config.sidebar_collapsed(),
             collapsed_saved_scroll_handle: gpui::ScrollHandle::new(),
             prev_monitoring_size: None,
