@@ -1685,12 +1685,24 @@ impl Ashell {
                                                         v_flex()
                                                             .w_full()
                                                             .gap_3()
-                                                            .child(Button::new("sync-backend").small().label(if is_s3 { "S3" } else { "WebDAV" }).dropdown_menu_with_anchor(Anchor::BottomLeft, {
-                                                                let view = view.clone();
-                                                                move |menu, window, _| menu
-                                                                    .item(PopupMenuItem::new("WebDAV").checked(!is_s3).on_click(window.listener_for(&view, |this, _, _, cx| this.set_sync_backend("webdav", cx))))
-                                                                    .item(PopupMenuItem::new("S3").checked(is_s3).on_click(window.listener_for(&view, |this, _, _, cx| this.set_sync_backend("s3", cx))))
-                                                            }))
+                                                            .child(
+                                                                h_flex()
+                                                                    .gap_2()
+                                                                    .child(
+                                                                        Button::new("sync-backend-webdav")
+                                                                            .small()
+                                                                            .label("WebDAV")
+                                                                            .when(!is_s3, |button| button.primary())
+                                                                            .on_click(window.listener_for(&view, |this, _, _, cx| this.set_sync_backend("webdav", cx)))
+                                                                    )
+                                                                    .child(
+                                                                        Button::new("sync-backend-s3")
+                                                                            .small()
+                                                                            .label("S3")
+                                                                            .when(is_s3, |button| button.primary())
+                                                                            .on_click(window.listener_for(&view, |this, _, _, cx| this.set_sync_backend("s3", cx)))
+                                                                    )
+                                                            )
                                                             .when(!is_s3, |this| this
                                                                 .child(v_flex().gap_1().child(div().text_sm().child(t!("sync_endpoint").to_string())).child(Input::new(&endpoint).w_full()))
                                                                 .child(v_flex().gap_1().child(div().text_sm().child(t!("sync_username").to_string())).child(Input::new(&username).w_full()))
