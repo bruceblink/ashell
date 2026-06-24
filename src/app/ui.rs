@@ -1997,6 +1997,7 @@ impl Ashell {
                         .size(px(12.))
                         .rounded_full()
                         .bg(hsla(0.0, 0.8, 0.4, 1.0)) // Red
+                        .when(!is_macos, |this| this.window_control_area(gpui::WindowControlArea::Close))
                         .on_click(|_, window, _| window.remove_window())
                         .hover(|s| s.bg(hsla(0.0, 0.8, 0.5, 1.0)))
                         .active(|s| s.bg(hsla(0.0, 0.8, 0.3, 1.0))),
@@ -2007,6 +2008,7 @@ impl Ashell {
                         .size(px(12.))
                         .rounded_full()
                         .bg(hsla(0.12, 0.8, 0.4, 1.0)) // Yellow
+                        .when(!is_macos, |this| this.window_control_area(gpui::WindowControlArea::Min))
                         .on_click(|_, window, _| window.minimize_window())
                         .hover(|s| s.bg(hsla(0.12, 0.8, 0.5, 1.0)))
                         .active(|s| s.bg(hsla(0.12, 0.8, 0.3, 1.0))),
@@ -2017,11 +2019,15 @@ impl Ashell {
                         .size(px(12.))
                         .rounded_full()
                         .bg(hsla(0.33, 0.8, 0.4, 1.0)) // Green
+                        .when(!is_macos, |this| this.window_control_area(gpui::WindowControlArea::Max))
                         .on_click(|_, window, _| {
                             if window.is_fullscreen() {
                                 window.toggle_fullscreen();
                             } else {
+                                #[cfg(target_os = "macos")]
                                 window.titlebar_double_click();
+                                #[cfg(not(target_os = "macos"))]
+                                window.zoom_window();
                             }
                         })
                         .hover(|s| s.bg(hsla(0.33, 0.8, 0.5, 1.0)))
@@ -2676,7 +2682,10 @@ impl Render for Ashell {
                         .w_full()
                         .bg(cx.theme().tab_bar)
                         .on_double_click(|_, window, _| {
+                            #[cfg(target_os = "macos")]
                             window.titlebar_double_click();
+                            #[cfg(not(target_os = "macos"))]
+                            window.zoom_window();
                         })
                         .child(self.render_window_controls(window, cx))
                         .child(
